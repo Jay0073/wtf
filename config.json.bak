@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "contexts": {
+    "personal": {
+      "mainDir": "C:\\Users\\voutl\\Documents\\projects",
+      "worktreeDir": "C:\\Users\\voutl\\Documents\\projects\\worktree",
+      "workspaceDir": "C:\\Users\\voutl\\Documents\\projects\\worktree",
+      "projects": {
+        "project1": {
+          "type": "mono",
+          "path": "project1"
+        }
+      }
+    },
+    "company": {
+      "mainDir": "C:\\Users\\voutl\\Documents\\Workelate",
+      "worktreeDir": "C:\\Users\\voutl\\Documents\\Workelate\\worktree",
+      "workspaceDir": "C:\\Users\\voutl\\Documents\\Workelate",
+      "projects": {
+        "workelate": {
+          "type": "multi",
+          "apps": {
+            "backend":   "workelate-backend",
+            "sdk":       "workelate-sdk\\dev",
+            "auth":      "workelate-auth-app",
+            "hub":       "workelate-hub-app",
+            "tasknetic": "workelate-tasknetic-app",
+            "form":      "workelate-form-app",
+            "xnetic":    "workelate-xnetic-app",
+            "admin":     "workelate-admin-app"
+          }
+        }
+      }
+    }
+  }
+}

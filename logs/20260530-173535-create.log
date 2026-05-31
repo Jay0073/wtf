@@ -1,0 +1,15 @@
+[wtf create] started 2026-05-30T17:35:35.1057437+05:30
+[17:35:35] FAIL: No config yet.
+[17:35:35] DETAIL: Run `wtf config` to set up your first root folder.
+[17:35:35] INFO: Commands:
+[17:35:35] DETAIL:   wtf create  [ctx proj branch apps...] [--panes] [--dry-run]
+[17:35:35] DETAIL:   wtf open    [ctx proj branch] [--panes]
+[17:35:35] DETAIL:   wtf add     [ctx proj branch apps...] [--dry-run]
+[17:35:35] DETAIL:   wtf remove  [ctx proj branch] [--force] [--dry-run]
+[17:35:35] DETAIL:   wtf list
+[17:35:35] DETAIL:   wtf doctor  [-Fix]
+[17:35:35] DETAIL:   wtf config            (interactive menu)
+[17:35:35] DETAIL:   wtf config edit       (open config.json directly)
+[17:35:35] DETAIL: 
+[17:35:35] DETAIL: All args are optional — omit any and you'll be prompted.
+[17:35:35] DETAIL: Single repos are auto-discovered; run `wtf config` to set up roots.

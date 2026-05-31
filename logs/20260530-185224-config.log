@@ -1,0 +1,18 @@
+[wtf config] started 2026-05-30T18:52:24.1380822+05:30
+[18:52:24] DETAIL: A root = a folder full of repos (personal, work). Repos inside it are found automatically.
+[18:52:24] DETAIL: A multi-repo group = repos you bundle under one name (e.g. pigeon).
+[18:52:31] PHASE: Add a root folder
+[18:52:31] DETAIL: A root is a CATEGORY of work, not a single project. Repos inside it are auto-found.
+[18:52:56] CONFIG saved to C:\Users\jay\.wtf\config.json
+[18:52:56] OK: context 'work' added
+[18:52:56] DETAIL: Discovered 7 single repo(s): citysense, pptV2, workelate-auth-app, workelate-backend, workelate-presentation, workelate-presentations-app, workelate-sdk
+[18:52:56] DETAIL: Use ‘Define a multi-repo project’ to group repos like pigeon.
+[18:53:22] PHASE: Add a multi-repo group
+[18:53:22] DETAIL: Bundle several repos under one name so they branch together (e.g. pigeon).
+[18:53:54] PHASE: Preview
+[18:53:54] INFO: auth → workelate-auth-app
+[18:53:54] INFO: backend → workelate-backend
+[18:53:54] INFO: presentations → workelate-presentations-app
+[18:53:54] INFO: sdk → workelate-sdk
+[18:54:03] CONFIG saved to C:\Users\jay\.wtf\config.json
+[18:54:03] OK: saved 'workelate'

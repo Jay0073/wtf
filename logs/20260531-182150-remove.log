@@ -1,0 +1,12 @@
+[wtf remove] started 2026-05-31T18:21:50.6590352+05:30
+[18:21:50] PHASE: Safety checks
+[18:21:50] STEP: citysense
+[18:21:50] GIT [C:\Users\jay\Documents\projects\worktrees\citysense-feat-sense-engine-integration]: git status --porcelain
+[18:21:51] GIT exit=0
+[18:21:51] GIT stdout: ?? .wtf-meta.json
+?? _PLAN.md
+[18:21:51] FAIL:   uncommitted changes (2 files)
+[18:21:51] GIT [C:\Users\jay\Documents\projects\worktrees\citysense-feat-sense-engine-integration]: git log --oneline @{u}..HEAD
+[18:21:51] GIT exit=0
+[18:21:51] FAIL: Aborting due to: citysense: dirty
+[18:21:51] DETAIL: Pass -Force to override (you will lose unpushed/uncommitted work).

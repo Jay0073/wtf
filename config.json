@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "contexts": {
+    "personal": {
+      "mainDir": "C:\\Users\\jay\\Documents\\projects",
+      "worktreeDir": "C:\\Users\\jay\\Documents\\projects\\worktrees",
+      "workspaceDir": "C:\\Users\\jay\\Documents\\projects\\worktrees",
+      "projects": {
+        "pigeon": {
+          "type": "multi",
+          "apps": {
+            "feed": "Pigeon-Feed",
+            "bot": "pigeon-bot-service",
+            "claw": "pigeon-claw"
+          }
+        }
+      }
+    },
+    "work": {
+      "mainDir": "C:\\Users\\jay\\Documents\\workelate\\main",
+      "worktreeDir": "C:\\Users\\jay\\Documents\\workelate\\worktrees",
+      "workspaceDir": "C:\\Users\\jay\\Documents\\workelate\\worktrees",
+      "projects": {
+        "workelate": {
+          "type": "multi",
+          "apps": {
+            "auth": "workelate-auth-app",
+            "backend": "workelate-backend",
+            "presentations": "workelate-presentations-app",
+            "sdk": "workelate-sdk"
+          }
+        }
+      }
+    }
+  }
+}

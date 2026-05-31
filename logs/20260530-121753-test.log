@@ -1,0 +1,7 @@
+[wtf test] started 2026-05-30T12:17:53.2114528+05:30
+[12:17:53] PHASE: Smoke Test
+[12:17:53] STEP: doing a thing
+[12:17:53] OK: did the thing
+[12:17:53] WARN: noticed something
+[12:17:53] FAIL: broke something
+[12:17:53] DETAIL: extra info

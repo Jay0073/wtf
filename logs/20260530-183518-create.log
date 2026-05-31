@@ -1,0 +1,10 @@
+[wtf create] started 2026-05-30T18:35:18.7788335+05:30
+[18:35:18] PHASE: Inputs
+[18:35:36] PHASE: Plan
+[18:35:36] INFO: Context:    pigeon feed
+[18:35:36] INFO: Project:    second-brain  (mono)
+[18:35:36] INFO: Branch:     docs/agentic-docs
+[18:35:36] INFO: Worktree:   second-brain
+[18:35:36] INFO: Path:       C:\Users\jay\Documents\projects\worktrees\second-brain-docs-agentic-docs
+[18:35:36] INFO: Agent UI:   tabs
+[18:35:51] WARN: Cancelled.

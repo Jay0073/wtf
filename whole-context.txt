@@ -1,0 +1,2342 @@
+i got some context for you.. which i did in the previous session
+
+now help me setup worktree for all the projects inside this workspace.. and again i want to create a workspace for those seperate branch for my new feature..
+
+
+
+
+
+
+
+
+
+Using git worktree alongside VS Code workspaces is an incredibly powerful setup. It allows you to check out a new feature branch into a completely separate physical folder on your computer, meaning you never have to stash your current work, switch branches, or rebuild dependencies when jumping between tasks.
+
+Here is the exact step-by-step process to set up your worktrees and bundle them into a brand-new "Feature Workspace."
+
+
+
+
+
+
+
+Step 1: Understand the Directory Strategy
+
+To keep your computer organized, you should avoid nesting worktrees inside your main repository folders. Instead, keep a clean, parallel folder structure on your hard drive:
+
+
+
+text
+
+
+
+📁 My-Projects/
+
+├── 📁 main-projects/ <-- Your existing workspace folders (e.g., main/prod branches)
+
+│ ├── 📁 lovable-frontend/
+
+│ └── 📁 supabase-backend/
+
+│
+
+└── 📁 feature-x-projects/ <-- Your NEW worktree folders (for your feature branch)
+
+├── 📁 lovable-frontend-fx/
+
+└── 📁 supabase-backend-fx/
+
+Use code with caution.
+
+
+
+
+
+
+
+
+
+Step 2: Create the Git Worktrees for Each Project
+
+Open the independent VS Code terminals for each project (as we set up in the previous step) and run the following commands.
+
+
+
+
+
+1. Inside your Frontend Terminal (lovable-frontend):
+
+Fetch the latest changes from your remote repository, then create the new worktree folder and feature branch simultaneously:
+
+
+
+bash
+
+
+
+git fetch origin
+
+git worktree add ../../feature-x-projects/lovable-frontend-fx -b feature/new-ui-layout
+
+Use code with caution.
+
+
+
+(This creates a brand new folder called lovable-frontend-fx two directories up, shifts it onto a new branch named feature/new-ui-layout, and links it back to your main repository's history).
+
+
+
+
+
+2. Inside your Backend Terminal (supabase-backend):
+
+Do the exact same thing to isolate your corresponding backend feature branch:
+
+
+
+bash
+
+
+
+git fetch origin
+
+git worktree add ../../feature-x-projects/supabase-backend-fx -b feature/new-api-endpoints
+
+Use code with caution.
+
+
+
+
+
+
+
+
+
+Step 3: Create the New "Feature Workspace" in VS Code
+
+Now that your feature files live in their own clean, separate directories, let's group them into a dedicated VS Code workspace window so you can safely use your Claude CLIs on the new branch.
+
+In VS Code, click File > New Window (to open a completely fresh, separate window).
+
+In the new window, click File > Open Folder... and open your first worktree directory: My-Projects/feature-x-projects/lovable-frontend-fx.
+
+Click File > Add Folder to Workspace... and select your second worktree directory: My-Projects/feature-x-projects/supabase-backend-fx.
+
+Click File > Save Workspace As...
+
+Save the file inside your feature-x-projects/ folder as feature-x.code-workspace.
+
+
+
+
+
+
+
+🚀 Step 4: Install Dependencies & Run Claude CLI
+
+Because a Git worktree acts like a fresh checkout of your code, you need to run your initial setup commands in this new workspace before coding:
+
+Right-click your lovable-frontend-fx root folder in the new workspace and open an integrated terminal.
+
+Run your package installer to rebuild the local cache for this branch:
+
+bash
+
+
+
+npm install
+
+Use code with caution.
+
+
+
+Run your Claude CLI tool (e.g., claude-code) inside this specific terminal. It will now safely read, analyze, and commit code only to your feature/new-ui-layout branch.
+
+
+
+
+
+
+
+🧹 How to Clean Up When You are Finished
+
+Once Claude helps you finish the feature, you merge the branch, and you no longer need this separate workspace, cleaning it up is incredibly simple:
+
+Close the feature workspace window in VS Code.
+
+Go back to your main project terminal and tell Git to drop the linked trees:
+
+bash
+
+
+
+git worktree remove ../../feature-x-projects/lovable-frontend-fx
+
+git worktree remove ../../feature-x-projects/supabase-backend-fx
+
+Use code with caution.
+
+
+
+Delete the temporary feature-x-projects/ parent directory from your computer.
+
+Would you like help setting up a quick Shell Script/Alias to automate this entire multi-project worktree creation process for future features, or are you running into any Git sync conflicts between your main folders and your new feature folders?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+You said: isnt there a better way to manage these worktrees.. what if i have multiple features running.. or i can also do multiple features at the same time.. so again wasting time doing all of this manually is time taking.. so suggest me a better alternative.
+
+
+
+
+
+
+
+
+
+Yes, doing this manually for every feature is a waste of time. Since you are specifically using Claude Code and VS Code, you have access to two "hidden" automation features that completely eliminate this manual setup. [1, 2]
+
+Here are the three tiers of automation, ranked from "Easiest" to "Most Powerful."
+
+
+
+
+
+1. The "Magic" Switch (If you are using claude-code)
+
+You mentioned you use claude CLIs. Newer versions of the Claude CLI have native worktree support built right in. You don't need to create the folder manually. [1, 2]
+
+Instead of running just claude, run:
+
+
+
+bash
+
+
+
+claude --worktree# OR
+
+claude -w
+
+Use code with caution.
+
+
+
+What it does: It automatically creates a temporary git worktree for you, runs your session inside it, and can even clean it up when you're done.
+
+Pro Tip: If you want to name the branch specifically, use claude -w feature/my-new-thing.
+
+
+
+
+
+2. The VS Code Extension (The UI Way)
+
+Stop using the terminal to link folders. Install the Git Worktree Manager extension (or "Git Worktrees"). [1]
+
+Why it's better: It adds a button to your VS Code sidebar.
+
+The Workflow:
+
+Click the "Create Worktree" button.
+
+Type the branch name.
+
+Crucial Feature: It has a setting to automatically add the new worktree to your current Workspace. [1]
+
+This turns a 10-step process into 2 clicks.
+
+
+
+
+
+
+
+3. The "One-Command" Script (Best for Your Multi-Project Setup)
+
+Since you have two projects (Frontend + Backend) that need to stay in sync, the tools above have a flaw: they only handle one repo at a time. You need a script that creates worktrees for both simultaneously.
+
+Save this simple function in your shell configuration (.zshrc or .bashrc):
+
+
+
+bash
+
+
+
+# Usage: feature-start "feature/login-page"function feature-start() {
+
+local BRANCH_NAME=$1
+
+if [ -z "$BRANCH_NAME" ]; then
+
+echo "Error: Please provide a branch name."
+
+return 1
+
+fi
+
+
+
+# 1. Define your paths (Update these to match your actual folders!)
+
+local ROOT_DIR="$HOME/My-Projects"
+
+local FE_MAIN="$ROOT_DIR/main-projects/lovable-frontend"
+
+local BE_MAIN="$ROOT_DIR/main-projects/supabase-backend"
+
+
+local WORKTREE_DIR="$ROOT_DIR/features/$BRANCH_NAME"
+
+
+
+mkdir -p "$WORKTREE_DIR"
+
+
+
+# 2. Create Frontend Worktree
+
+echo "🚀 Creating Frontend Worktree..."
+
+cd "$FE_MAIN"
+
+git worktree add "$WORKTREE_DIR/frontend" -b "$BRANCH_NAME"
+
+
+
+# 3. Create Backend Worktree
+
+echo "🚀 Creating Backend Worktree..."
+
+cd "$BE_MAIN"
+
+git worktree add "$WORKTREE_DIR/backend" -b "$BRANCH_NAME"
+
+
+
+# 4. Open them in a new VS Code window immediately
+
+echo "✨ Opening VS Code..."
+
+code "$WORKTREE_DIR/frontend" "$WORKTREE_DIR/backend"
+
+}
+
+Use code with caution.
+
+
+
+Now, your entire workflow is just:
+
+
+
+bash
+
+
+
+feature-start feature/dark-mode
+
+Use code with caution.
+
+
+
+This one command creates the folders, creates the branches in both repos, and opens a fresh VS Code window with both projects loaded, ready for your Claude CLI.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+6 sites
+
+
+
+What Is Claude Code Git Worktree Support? How to Run ...
+
+25 Mar 2026 — Key Takeaways * Git worktrees let you check out multiple branches simultaneously in separate directories, all sharing the same und...
+
+
+
+
+
+MindStudio
+
+
+
+Making Git Worktrees work with your tools | Agney
+
+15 Mar 2026 — Visual Studio Code. VS Code has built-in support for creating/switching between worktrees. You can manage these through the Git si...
+
+
+
+www.agney.dev
+
+
+
+wtp: A Better Git Worktree CLI Tool - DEV Community
+
+28 Jul 2025 — To solve these issues, you can build a CLI tool with Claude Code: * **wtp** * Automatically generates worktree path * Automaticall...
+
+
+
+
+
+DEV Community
+
+
+
+Show all
+
+
+
+You said: i use claude.. but i dont want to be dependent on it alone.. as i also use gemini cli, antigravity, opencode and many others in the future.. and instead of the worktree the script approach is best.. but i do multiple projects.. some of my own and companies.. so there will be some initial updates like changing directories and project folder names.. because some of my projects only has mono repo and some with multi repo.. and company's one has 6-7 repos (since the product is a suite of apps).. and other has mono repo.. so i need a script which is more easier and faster to edit and i can use it for all my projects and company work.. for my projects i have a setup like this user/documents/projects/ in this project all project folders are there like projects/project1, projects/project2.. and for worktree i made a seperate folder projects/worktree/ and all the projects worktrees goes into this like projects/worktree/project1-newfeature, projects/worktree/project2-thisoptimization etc.. and for my company, i have this setup.. documents/workelate/ and inside it i have workelate/main/ and workelate/worktree/ and inside main/ i have all the projects, db dump, some md files and stuff.. and for worktrees i store them in workelate/worktree/ for each all apps of main.. and i put the workspaces inside the workelate/ only along with main and worktree folders.. tell me what do you think about my use, i started using it, so i can adapt now itself if there any better way.. which is more organized and simple.. so i need this script to help me edit easily and quickly and it should create the worktrees in same manner and also create workspace if there are multi repo.. and when working with multi repo.. once the specific worktree is created all of this must be pushed into a vscode workspace as well.. so that it will be easy and better.. and in terms of working or developing.. lets assume im only working on backend, hub and tasknetic(one of suite of apps).. and i wanted to open a agent cli with the context of only these projects.. because i work little different.. i use a root level session for planning and ideating.. and specific sessions for development in each of the project with the plan from that main session.. so since im creating a seperate workspace with only few projects scope.. can i do the same with opening a claude cli or opencode cli or any other with only that much of context..
+
+
+
+
+
+
+
+
+
+Your folder layout strategy is highly efficient. By standardizing paths into ~/Documents/projects/worktree/ for personal projects and ~/workelate/worktree/ for company projects, you create a scalable foundation for automation.
+
+
+
+
+
+
+
+Part 1: Your Agent-Centric Planning Workflow
+
+
+
+"I use a root-level session for planning... and specific sessions for development in each project... can I do the same with opening an agent CLI with only that much context?"
+
+Yes, you can isolate agent contexts. AI agents (like Claude Code, Gemini CLI, OpenCode, and Antigravity) assemble context based on where they are initialized in the directory tree. They do not naturally understand VS Code workspaces; they only understand the current working directory (pwd). [1, 2, 3]
+
+Your multi-layered workflow functions seamlessly using this structure:
+
+
+
+
+
+🟢 The Planning Phase (The "Brain" Session)
+
+Open an agent terminal at the root directory of your feature worktree.
+
+For Mono-repos: This is simply the root folder.
+
+For Company Multi-repos: This is the parent directory housing the checked-out apps.
+
+Result: The agent can parse files across all selected repositories (e.g., matching backend changes to front-end constraints) to create an overarching architectural blueprint.
+
+
+
+
+
+🔵 The Execution Phase (The "Muscle" Sessions)
+
+Open separate terminal instances inside the specific subfolders (e.g., cd backend or cd tasknetic) and launch your agent CLIs individually. [1]
+
+Result: The agent's context window stays clean and lightweight. It won't get distracted by unrelated front-end code while optimizing a backend database query. [1]
+
+
+
+
+
+
+
+Part 2: The Universal Automation Script (wt)
+
+This script natively supports both mono-repos and multi-repos, seamlessly handles both personal and company paths, and generates an exact VS Code .code-workspace JSON file on the fly. [1]
+
+
+
+
+
+How to Install It:
+
+Open your shell configuration file using nano ~/.zshrc (or ~/.bashrc depending on your terminal).
+
+Paste the script below into the bottom of the file.
+
+Save it and reload your terminal configuration by running source ~/.zshrc.
+
+
+
+bash
+
+
+
+function wt() {
+
+# Usage helper
+
+if [ "$1" == "-h" ] || [ "$1" == "--help" ] || [ -z "$1" ]; then
+
+echo "Usage: wt <context> <project_name> <branch_name> [optional_app1] [optional_app2]..."
+
+echo "Contexts: personal | company"
+
+echo "Examples:"
+
+echo " wt personal project1 feature/mono-repo-fix"
+
+echo " wt company workelate feature/new-api backend hub tasknetic"
+
+return 0
+
+fi
+
+
+
+local CONTEXT=$1
+
+local PROJECT_NAME=$2
+
+local BRANCH=$3
+
+shift 3 # Shift arguments to leave only the optional targeted applications ($@)
+
+local TARGET_APPS=("$@")
+
+
+
+local MAIN_DIR=""
+
+local WT_ROOT=""
+
+local WORKSPACE_DEST=""
+
+
+
+# =========================================================================
+
+# 🛠️ QUICK EDIT CONFIGURATION BLOCK (Modify your paths here)
+
+# =========================================================================
+
+if [ "$CONTEXT" == "personal" ]; then
+
+MAIN_DIR="$HOME/Documents/projects"
+
+WT_ROOT="$HOME/Documents/projects/worktree"
+
+WORKSPACE_DEST="$WT_ROOT" # Saves workspace directly inside the worktree folder
+
+elif [ "$CONTEXT" == "company" ]; then
+
+MAIN_DIR="$HOME/workelate/main"
+
+WT_ROOT="$HOME/workelate/worktree"
+
+WORKSPACE_DEST="$HOME/workelate" # Matches your preference: inside workelate/
+
+else
+
+echo "❌ Error: Invalid context. Use 'personal' or 'company'."
+
+return 1
+
+fi
+
+# =========================================================================
+
+
+
+# Clean branch name strings to format safe workspace filenames (e.g., replace / with -)
+
+local SAFE_BRANCH=$(echo "$BRANCH" | sed 's/\//-/g')
+
+local TARGET_WT_DIR="$WT_ROOT/${PROJECT_NAME}-${SAFE_BRANCH}"
+
+mkdir -p "$TARGET_WT_DIR"
+
+
+
+# Case A: Mono-repo (No specific target sub-apps defined in command)
+
+if [ ${#TARGET_APPS[@]} -eq 0 ]; then
+
+echo "📦 Mono-repo detected for '$PROJECT_NAME'. Creating single worktree..."
+
+
+local MONO_SOURCE="$MAIN_DIR/$PROJECT_NAME"
+
+if [ ! -d "$MONO_SOURCE" ] && [ "$CONTEXT" == "personal" ]; then
+
+MONO_SOURCE="$MAIN_DIR/$PROJECT_NAME"
+
+elif [ ! -d "$MONO_SOURCE" ]; then
+
+# Fallback if personal projects are flat in the root directory
+
+MONO_SOURCE="$MAIN_DIR"
+
+fi
+
+
+
+cd "$MONO_SOURCE" || { echo "❌ Root source directory not found"; return 1; }
+
+git fetch origin
+
+git worktree add "$TARGET_WT_DIR" -b "$BRANCH"
+
+
+echo "✨ Launching VS Code for Mono-Repo..."
+
+code "$TARGET_WT_DIR"
+
+return 0
+
+fi
+
+
+
+# Case B: Multi-repo Suite (Specific sub-apps defined)
+
+echo "🗂️ Suite configuration detected. Extracting target apps..."
+
+
+# Start building the JSON structure for the VS Code workspace file
+
+local WORKSPACE_FILE="$WORKSPACE_DEST/${PROJECT_NAME}-${SAFE_BRANCH}.code-workspace"
+
+echo "{" > "$WORKSPACE_FILE"
+
+echo " \"folders\": [" >> "$WORKSPACE_FILE"
+
+
+
+local FIRST=true
+
+for APP in "${TARGET_APPS[@]}"; do
+
+local APP_SOURCE="$MAIN_DIR/$APP"
+
+local APP_DEST="$TARGET_WT_DIR/$APP"
+
+
+
+if [ ! -d "$APP_SOURCE" ]; then
+
+echo "⚠️ Skipping '$APP': Source directory does not exist at $APP_SOURCE"
+
+continue
+
+fi
+
+
+
+echo "⚙️ Branching worktree for: $APP"
+
+cd "$APP_SOURCE" || continue
+
+git fetch origin
+
+git worktree add "$APP_DEST" -b "$BRANCH"
+
+
+
+# Append the directory pointer string to the workspace configuration JSON array
+
+if [ "$FIRST" = true ]; then
+
+FIRST=false
+
+else
+
+echo "," >> "$WORKSPACE_FILE"
+
+fi
+
+echo -n " { \"path\": \"$APP_DEST\" }" >> "$WORKSPACE_FILE"
+
+done
+
+
+
+# Close out the VS Code workspace JSON layout formatting
+
+echo "" >> "$WORKSPACE_FILE"
+
+echo " ]," >> "$WORKSPACE_FILE"
+
+echo " \"settings\": {}" >> "$WORKSPACE_FILE"
+
+echo "}" >> "$WORKSPACE_FILE"
+
+
+
+echo "✅ Saved workspace file to: $WORKSPACE_FILE"
+
+echo "✨ Opening isolated workspace in VS Code..."
+
+code "$WORKSPACE_FILE"
+
+}
+
+Use code with caution.
+
+
+
+
+
+
+
+
+
+Part 3: How the Workflow Looks in Action
+
+
+
+
+
+Scenario 1: Work multi-repo task (Backend, Hub, Tasknetic)
+
+
+
+bash
+
+
+
+wt company workelate feature/auth-refactor backend hub tasknetic
+
+Use code with caution.
+
+
+
+What happens: The script navigates to your company source paths, branches out worktrees only for those three applications into workelate/worktree/workelate-feature-auth-refactor/, formats a workelate-feature-auth-refactor.code-workspace file inside workelate/, and opens it immediately. [1, 2]
+
+
+
+
+
+Scenario 2: Personal mono-repo task
+
+
+
+bash
+
+
+
+wt personal project1 feature/ui-cleanup
+
+Use code with caution.
+
+
+
+What happens: The script detects that no sub-apps were passed, treats it as an isolated mono-repo, places the files neatly inside projects/worktree/project1-feature-ui-cleanup, and launches the folder directly. [1]
+
+
+
+
+
+Tips for Future Adaptations
+
+Adding a third context (e.g., Freelance): Simply open the file, duplicate the elif block in the path configuration segment, and add your alternative folder paths.
+
+Automating package installations: If your apps share standard builds, you can inject an automatic execution step like cd "$APP_DEST" && npm install directly into the repository iterator loop of the script.
+
+Would you like to customize the script to automatically launch distinct CLI agents in split-terminal panes upon opening the workspace, or do you need to add an automated cleanup routine to purge old workspace configuration files when done?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+7 sites
+
+
+
+Git Worktree Manager - Visual Studio Marketplace
+
+17 Apr 2026 — Create a new worktree: Select “Create Worktree” and specify a branch. Switch to it instantly via the Source Control view or comman...
+
+
+
+
+
+Visual Studio Marketplace
+
+
+
+Git Worktrees: The secret sauce to multi-agent workflows!
+
+21 Aug 2025 — what are you doing while clawed code is running those long horizon tasks. sometimes if I'm not thinking about the next features an...
+
+
+
+3:39
+
+
+
+
+
+
+
+YouTube·Samuel Gregory
+
+
+
+The Structure Where AI Coding Agents Actually Shine - Medium
+
+10 Feb 2026 — Tip 2 — Private Workspace + Submodules * Create a private repo (GitHub or personal Git server) * Connect each project as a submodu...
+
+
+
+
+
+Medium·Sunghyun Roh
+
+
+
+Show all
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+so i want you to understand all of this.. and i want a better a better script there which easily manages the functionality i was talking there.. and i also feel like there should be seperate terminals also opened.. for agent cli of that feature workspace.. and another set of terminals for running them.. because let me tell you a use case.. suppose im working on only backend, hub and tasknetic.. but auth also should be running.. and i keep a basic bat script like this
+
+
+
+wt --title "backend" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-backend" ; new-tab --title "sdk" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-sdk\dev" ; new-tab --title "auth" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-auth-app" ; new-tab --title "hub" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-hub-app" ; new-tab --title "tasknetic" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-tasknetic-app"  ; new-tab --title "form" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-form-app" ; new-tab --title "xnetic" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-xnetic-app" ; new-tab --title "admin" -d "C:\Users\voutl\OneDrive\Documents\Workelate\workelate-admin-app" 
+
+
+
+then it would open the projects which are of main branch only right.. though this script is older one (my previous workflow), i showed this just for reference.. so i need my new worktree creation script to also open all the terminals but those which are worktree'd used to open those in that terminal window rest of the ones go with main branch only.. so it dynamically creates these terminals.. and there should be an option to not just create everytime i run, it also should have an option to just open which only opens those terminals back.. both agent cli terminal window and running terminal window.. so it can useful if the feature takes too long or if i had to work on something else in the mean time.. and i should also delete it using the command and it should check it everything commited and then delete those workspace, worktree and everything related to it..
+
+
+
+then is it possible to also add the agent cli session id and things like that and it opens those sessions back.. so i can continue with the exact context they have.. again this is optional becuase i thinking to go with having a set of md files which track the plan, devleopment and whole flow so that when any agent hallucinates or bloated, i could use the new session right back.. but when open function used this agent cli terminal tab also should be opened.. along with running terminal window..
+
+
+
+also if there are few sessions, in both running ones and agent cli ones.. then i would like them to be in a single terminal tab in split windows.. because i could observe everything in a single tab easily.. hmm we can go with this.. but again if we go with tabs we can rename and identify them properly.. whereas for split ones.. even i can get confused like which pane is for which app or which session is for what.. so just think over it and just give me the whole workflow and the plan.. once we finalize things, lets start creating that script
+
+This is an incredibly sophisticated and forward-thinking workflow. You are essentially building a localized, context-aware micro-orchestrator for your development environment.
+
+First, I noticed a crucial detail in your snippet: wt --title "backend" -d "C:\Users\...". This means you are using Windows Terminal and are on a Windows machine. The previous bash/zsh script won't fly here. We will need to build this using PowerShell, which is vastly superior for this kind of logic anyway (handling arrays, string building for the terminal, and JSON parsing for the workspace).
+
+I also love your idea of using Markdown files for state management over relying on AI session IDs. Agent contexts do get bloated and hallucinate over long tasks. Having a "source of truth" .md file that a fresh agent can read to instantly resume work is an elite-level engineering practice.
+
+Here is the blueprint for how we can build this system. Let's review the plan before we write the code.
+
+The Architecture: "The Feature Manager"
+We will create a PowerShell module (or profile script) with three primary commands:
+
+New-Feature (Creates everything)
+
+Resume-Feature (Reopens everything)
+
+Drop-Feature (Safely deletes everything)
+
+1. The Fallback Runner Logic (The smartest part of your request)
+To achieve the "Run feature branches if selected, otherwise run main branch" logic, the script needs to know what the entire suite of apps is.
+
+We will define a master array of your company apps in the script (e.g., $CompanyApps = @("backend", "sdk", "auth", "hub", "tasknetic", "form", "xnetic", "admin")).
+
+When you target backend, hub, tasknetic, the script loops through $CompanyApps. If the app is in your target list, it points the terminal to the worktree/ path. If it's not, it points to the main/ path.
+
+2. Terminal Layout Strategy: Tabs vs. Splits
+You hit the nail on the head regarding the confusion of split panes for 8 apps. Here is my recommended hybrid approach to keep you sane:
+
+Window 1: The Runner Terminal (Tabs)
+
+A single Windows Terminal instance with a separate Tab for every single app (all 8 of them).
+
+We will dynamically rename the tabs so you know exactly what is running. For example: [F] backend, [F] hub, [M] auth, [M] sdk (where F = Feature Worktree, M = Main).
+
+Window 2: The Agent CLI Terminal (Splits/Panes)
+
+A second Windows Terminal instance dedicated purely to your Agents.
+
+This window will only open panes for your targeted apps (e.g., 3 split panes for backend, hub, tasknetic).
+
+Because it's only 2-3 panes, it won't get too cramped, and you can see all your AI contexts simultaneously. We can pass the --title flag to the panes so they are labeled clearly.
+
+3. State Persistence (How Resume-Feature works)
+If you close your computer and want to run Resume-Feature auth-refactor tomorrow, how does the script know you were only working on backend, hub, and tasknetic?
+
+When New-Feature runs, we will have it drop a tiny hidden file (e.g., .feature-meta.json) into the root of your workelate/worktree/feature-name/ folder.
+
+This file will simply store the list of targeted apps. Resume-Feature will read this file, rebuild your VS Code workspace, and reconstruct the exact Windows Terminal commands to open your Runners and Agents.
+
+4. Safety First: The Cleanup Routine (Drop-Feature)
+When deleting a worktree, we cannot just forcefully delete folders. The script will:
+
+Loop through your targeted feature apps.
+
+Run git status --porcelain.
+
+If it detects uncommitted changes, it will ABORT and warn you which app has unsaved work.
+
+If everything is clean, it runs git worktree remove, prunes the git trees, deletes the workspace .code-workspace file, and removes the parent feature folder.
+
+The Proposed Workflow in Action
+1. Starting a task:
+
+PowerShell
+New-Feature -Context company -Project workelate -Branch "feature/auth-refactor" -Apps "backend", "hub", "tasknetic"
+Creates the worktrees, writes the .feature-meta.json, generates the VS Code workspace, and opens the Tabbed Runners and Split-Pane Agents.
+
+2. Taking a break & coming back tomorrow:
+
+PowerShell
+Resume-Feature -Context company -Project workelate -Branch "feature/auth-refactor"
+Reads the meta-file, launches VS Code, and fires up the exact same terminal layouts without touching git.
+
+3. Finishing the task:
+
+PowerShell
+Drop-Feature -Context company -Project workelate -Branch "feature/auth-refactor"
+Checks for dirty files, drops the trees, cleans the directory.
+
+Next Steps
+How does this blueprint look to you? Specifically, are you comfortable using a PowerShell profile for this (since you are on Windows), and does the Tabs for Runners + Panes for Agents layout solve your visibility concerns?
+
+Once you confirm, I'll write the complete PowerShell script for you.
+
+i asked the same question to claude and it responded this
+
+Read through your whole flow. Before we write anything, I want to lock in the design decisions because a few of your questions have real tradeoffs, and one big thing in your previous context is broken: **you're on Windows** (`C:\Users\voutl\OneDrive\...`, `wt new-tab`), but the previous answer gave you a bash function for `~/.zshrc`. That wouldn't have worked natively. We need PowerShell.
+
+
+
+Here's how I'd build this. Tell me what you want to change.
+
+
+
+## The shape of the tool
+
+
+
+One PowerShell module (`wtf.ps1` — "worktree flow"), one JSON config file, exposed as a `wtf` command. Four subcommands cover everything:
+
+
+
+- `wtf create <context> <project> <branch> [apps...]` — build worktrees, workspace, terminals
+
+- `wtf open <context> <project> <branch>` — reopen an existing one (no recreation)
+
+- `wtf remove <context> <project> <branch> [-Force]` — safe delete with commit/push checks
+
+- `wtf list` — show active worktrees
+
+
+
+Plus `wtf config` to pop the JSON open in your editor.
+
+
+
+## Why a config file, not a script you edit
+
+
+
+Your previous script had paths and project names hardcoded in shell variables. Every time you onboard a new repo or your company shuffles a folder, you're editing logic. Bad pattern.
+
+
+
+Instead, one `wtf-config.json` like this — and the script never changes:
+
+
+
+```json
+
+{
+
+  "contexts": {
+
+    "personal": {
+
+      "mainDir": "~/Documents/projects",
+
+      "worktreeDir": "~/Documents/projects/worktree",
+
+      "workspaceDir": "~/Documents/projects/worktree",
+
+      "projects": {
+
+        "project1": { "type": "mono", "path": "project1" }
+
+      }
+
+    },
+
+    "company": {
+
+      "mainDir": "~/OneDrive/Documents/Workelate",
+
+      "worktreeDir": "~/OneDrive/Documents/Workelate/worktree",
+
+      "workspaceDir": "~/OneDrive/Documents/Workelate",
+
+      "projects": {
+
+        "workelate": {
+
+          "type": "multi",
+
+          "apps": {
+
+            "backend":   "workelate-backend",
+
+            "sdk":       "workelate-sdk/dev",
+
+            "auth":      "workelate-auth-app",
+
+            "hub":       "workelate-hub-app",
+
+            "tasknetic": "workelate-tasknetic-app",
+
+            "form":      "workelate-form-app",
+
+            "xnetic":    "workelate-xnetic-app",
+
+            "admin":     "workelate-admin-app"
+
+          }
+
+        }
+
+      }
+
+    }
+
+  }
+
+}
+
+```
+
+
+
+Add a freelance context, add a new repo to the suite, rename `tasknetic` — you touch JSON, never the script. The `apps` key is the short name you'll type in the CLI; the value is the actual folder.
+
+
+
+Note your current Workelate folder is *flat* — apps sit directly in `Workelate/` next to each other, not inside a `main/` subfolder. I'd keep it that way and just put worktrees + workspaces in sibling folders (`worktree/`, workspaces in root). Simpler than introducing a `main/` layer now.
+
+
+
+## My answer on tabs vs panes
+
+
+
+**Tabs, named.** You already had this instinct, you were right. Six to eight panes in one window at the size your laptop screen probably is = unreadable. Tabs let each have a clear title like `[hub]` or `[backend]` and you alt-tab between them with `Ctrl+Tab`. Windows Terminal lets you drag a tab into a pane later if you want two side by side for a specific moment — best of both.
+
+
+
+## My answer on the two-window split
+
+
+
+Yes, two separate Windows Terminal windows, exactly as you described:
+
+
+
+- **Agents window** — tabs only for apps that are worktree'd. Working on backend, hub, tasknetic? Three tabs, each `cd`'d to the worktree path. This is where you launch `claude`, `gemini`, `opencode`, whatever.
+
+- **Runners window** — tabs for *every* app in the project. The three you're touching point to the worktree paths; the other five (auth, sdk, form, xnetic, admin) point to main. Each tab is just `cd`'d, sitting at a prompt — I won't auto-run `npm run dev`, because the run command isn't always the same and you'll want to choose. You hit up-arrow or type it yourself.
+
+
+
+Each window's title carries the feature name so you can find it on the taskbar: `Agents — workelate/auth-refactor`, `Runners — workelate/auth-refactor`.
+
+
+
+## My answer on session IDs
+
+
+
+**Skip it.** Three reasons:
+
+
+
+You use multiple agent CLIs (Claude, Gemini, OpenCode, Antigravity), and they don't share a session format. Building per-tool resume logic into `wtf` couples it to specific agents and breaks every time one of them changes its session storage.
+
+
+
+Claude Code already stores sessions per-directory. When `wtf open` puts the terminal back in the same worktree folder and you type `claude --continue`, it picks up. Same for most others. The tool already does the work.
+
+
+
+Your MD-file-for-plan approach is the right primitive. Sessions are ephemeral; plans should survive a hallucination and a fresh `--clear`. Trust the markdown, don't trust the session.
+
+
+
+So `wtf open` just reopens the windows with the same `cd` layout. You relaunch agents however you want.
+
+
+
+## What gets persisted so `open` works
+
+
+
+When `create` runs, it writes a `.wtf-meta.json` next to the `.code-workspace` file:
+
+
+
+```json
+
+{
+
+  "context": "company",
+
+  "project": "workelate",
+
+  "branch": "feature/auth-refactor",
+
+  "worktreedApps": ["backend", "hub", "tasknetic"],
+
+  "createdAt": "2026-05-28T..."
+
+}
+
+```
+
+
+
+`wtf open` reads this, looks up the project in the config (to know which other apps need runner tabs), rebuilds the two terminal windows, and reopens VS Code on the workspace. Nothing else needed.
+
+
+
+## Safe delete
+
+
+
+`wtf remove` runs three checks per worktree before touching anything:
+
+
+
+1. Uncommitted changes (`git status --porcelain` non-empty → abort)
+
+2. Unpushed commits on this branch (`git log @{u}..HEAD` → abort)
+
+3. Commits not yet merged into the default branch (warning, not abort — sometimes you abandon a feature)
+
+
+
+If any of (1) or (2) fail, it prints exactly what's pending in which worktree and exits. `-Force` overrides. On success: `git worktree remove`, delete the `.code-workspace`, delete `.wtf-meta.json`.
+
+
+
+## What a session looks like end-to-end
+
+
+
+```powershell
+
+# Morning: start a new feature touching three apps
+
+wtf create company workelate feature/auth-refactor backend hub tasknetic
+
+# → 3 worktrees created, workspace file written, VS Code opens,
+
+#   Agents window opens with 3 tabs, Runners window opens with 8 tabs
+
+
+
+# Lunch: close everything to work on a hotfix
+
+# (just close the windows)
+
+
+
+# After lunch: pick it back up
+
+wtf open company workelate feature/auth-refactor
+
+# → VS Code back, both terminal windows back, all tabs in the right dirs
+
+
+
+# Friday: merged, ready to clean up
+
+wtf remove company workelate feature/auth-refactor
+
+# → checks all 3 worktrees are clean and pushed, then nukes
+
+```
+
+
+
+## One thing I'd push back on
+
+
+
+The `<context> <project> <branch>` triple is verbose to type. Once we have `list`, I'd add a shortcut: `wtf open` with no args shows a numbered picker of recent worktrees and you just pick. Same for `remove`. You'll thank me by week two.
+
+
+
+---
+
+
+
+**Decisions I need from you before I write it:**
+
+
+
+1. Config location — `~/.wtf/config.json`, or stash it inside one of your project folders so it syncs via OneDrive? I'd lean `~/.wtf/` but OneDrive sync is reasonable if you switch machines.
+
+2. Default branch name for the "merged into" check — `main` for everything, or does any repo still use `master` / `develop`?
+
+3. For the runners window, should I auto-run something (like `npm run dev`) per app, or leave every tab at a prompt? I said leave it; confirm.
+
+4. Anything missing from the four commands?
+
+
+
+Once you confirm, I'll write the script and the config in one shot.
+
+
+
+and it was good, mainly the commands wtf create, wtf open etc and configure is actually good because what if i have to edit the worktree and workspace mid development or just after creating it.. though you actually understood and clarified my point.. in both of your responses i felt something is missing. and we can cook this better than this.. so please think over it, get more ideas and references from others workflows and stuff.. and cook this to fine shit (sarcastically saying)..!
+
+You are absolutely right. Claude’s response was a good architectural draft, but it was a "happy path" toy. It completely ignored the gritty reality of local development on Windows.
+
+If you just run git worktree add, you get a raw checkout. You know what that means? No .env files. Your apps won't connect to the database, your ports will clash, and you'll waste 10 minutes manually copying environment files and running package installs just to get the suite running. Furthermore, Claude’s script gave you no way to add an app mid-development if you suddenly realize your backend feature requires an SDK change.
+
+If we are going to cook this to "fine shit," we need a system that acts like a true local orchestrator.
+
+The 5 "Cooked" Upgrades We Are Adding:
+The .env Bridge: When a worktree is created, the script will automatically hunt for .env, .env.local, and .env.development files in your main repo and silently copy them to your new feature branches.
+
+Mid-Flight Mutations (wtf add): If you are 2 hours into a ticket and realize you need the form app, you just type wtf add company workelate feature/auth form. It creates the tree, copies the envs, and injects it live into your VS Code Workspace JSON.
+
+The Agent Brain (_PLAN.md): Since you use root-level planning sessions, wtf create will auto-generate a structured _PLAN.md in the root of your workspace. Your agents now have an immediate, standardized anchor point for context.
+
+Visual Terminal Architecture: We will use PowerShell string arrays to strictly command wt.exe.
+
+Agent Window (Split Panes): Purple tabs. Only the apps you are modifying.
+
+Runner Window (Tabs): Cyan tabs for your worktree apps, Dim Gray tabs for your main branch apps. You will know exactly what is running where.
+
+State Self-Containment: Instead of a global tracking file that can corrupt, the .wtf-meta.json lives inside the feature folder. If you nuke the folder manually, the state cleans itself up automatically.
+
+Step 1: The Config File
+Create a folder at C:\Users\YourName\.wtf\ and save this as config.json inside it. Notice how we define the specific sub-folders for each app here.
+
+JSON
+{
+  "contexts": {
+    "company": {
+      "mainDir": "C:\\Users\\voutl\\OneDrive\\Documents\\Workelate",
+      "worktreeDir": "C:\\Users\\voutl\\OneDrive\\Documents\\Workelate\\worktree",
+      "projects": {
+        "workelate": {
+          "type": "multi",
+          "apps": {
+            "backend": "workelate-backend",
+            "sdk": "workelate-sdk\\dev",
+            "auth": "workelate-auth-app",
+            "hub": "workelate-hub-app",
+            "tasknetic": "workelate-tasknetic-app",
+            "form": "workelate-form-app",
+            "xnetic": "workelate-xnetic-app",
+            "admin": "workelate-admin-app"
+          }
+        }
+      }
+    }
+  }
+}
+Step 2: The Master PowerShell Script
+Open your PowerShell profile (notepad $PROFILE) and paste this absolute unit of a script. Save and run . $PROFILE to reload.
+
+PowerShell
+function wtf {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true, Position=0)] [string]$Action,
+        [Parameter(Position=1)] [string]$Context,
+        [Parameter(Position=2)] [string]$Project,
+        [Parameter(Position=3)] [string]$Branch,
+        [Parameter(ValueFromRemainingArguments=$true)] $Apps
+    )
+
+    $ConfigPath = "$env:USERPROFILE\.wtf\config.json"
+    if (-not (Test-Path $ConfigPath)) { Write-Host "❌ Config not found at $ConfigPath" -ForegroundColor Red; return }
+    $Config = Get-Content $ConfigPath | ConvertFrom-Json -AsHashtable
+
+    # Validate Context & Project
+    if (-not $Config.contexts.Contains($Context)) { Write-Host "❌ Context '$Context' not found." -ForegroundColor Red; return }
+    $ProjConfig = $Config.contexts[$Context].projects[$Project]
+    if ($null -eq $ProjConfig) { Write-Host "❌ Project '$Project' not found." -ForegroundColor Red; return }
+
+    $MainDir = $Config.contexts[$Context].mainDir
+    $WtRoot = $Config.contexts[$Context].worktreeDir
+    $SafeBranch = $Branch -replace '/', '-'
+    $FeatureDir = Join-Path $WtRoot "$Project-$SafeBranch"
+
+    switch ($Action) {
+        "create" {
+            if (Test-Path $FeatureDir) { Write-Host "⚠️ Worktree suite already exists. Use 'wtf open' or 'wtf add'." -ForegroundColor Yellow; return }
+            New-Item -ItemType Directory -Path $FeatureDir | Out-Null
+            
+            $Meta = @{ context = $Context; project = $Project; branch = $Branch; apps = @() }
+            
+            foreach ($app in $Apps) {
+                if (-not $ProjConfig.apps.Contains($app)) { continue }
+                $AppMainPath = Join-Path $MainDir $ProjConfig.apps[$app]
+                $AppWtPath = Join-Path $FeatureDir $app
+                
+                Write-Host "🌱 Branching $app..." -ForegroundColor Cyan
+                Set-Location $AppMainPath
+                git fetch origin quiet
+                git worktree add $AppWtPath -b $Branch
+
+                # The Env Bridge: Copying ignored variables
+                foreach ($envFile in @(".env", ".env.local", ".env.development")) {
+                    $srcEnv = Join-Path $AppMainPath $envFile
+                    if (Test-Path $srcEnv) { Copy-Item $srcEnv -Destination (Join-Path $AppWtPath $envFile) }
+                }
+                $Meta.apps += $app
+            }
+
+            # Generate Agent Plan Markdown
+            $PlanPath = Join-Path $FeatureDir "_PLAN.md"
+            @"
+# Feature: $Branch
+**Apps in Scope:** $($Meta.apps -join ', ')
+
+## 🧠 Context / Goal
+(Define the root architecture here before diving into Agent sessions)
+
+## 📋 Execution Steps
+- [ ] Backend updates
+- [ ] Frontend integration
+"@ | Out-File $PlanPath -Encoding utf8
+
+            # Build VS Code Workspace (Relative paths)
+            $WsFolders = $Meta.apps | ForEach-Object { @{ path = $_ } }
+            $Workspace = @{ folders = $WsFolders; settings = @{} }
+            $Workspace | ConvertTo-Json -Depth 5 | Out-File (Join-Path $FeatureDir "$SafeBranch.code-workspace")
+
+            # Save Meta State
+            $Meta | ConvertTo-Json | Out-File (Join-Path $FeatureDir ".wtf-meta.json")
+            
+            wtf open $Context $Project $Branch
+        }
+
+        "add" {
+            if (-not (Test-Path $FeatureDir)) { Write-Host "❌ Feature dir not found." -ForegroundColor Red; return }
+            $MetaFile = Join-Path $FeatureDir ".wtf-meta.json"
+            $Meta = Get-Content $MetaFile | ConvertFrom-Json
+            
+            foreach ($app in $Apps) {
+                if ($app -in $Meta.apps) { continue }
+                $AppMainPath = Join-Path $MainDir $ProjConfig.apps[$app]
+                $AppWtPath = Join-Path $FeatureDir $app
+                
+                Write-Host "➕ Injecting $app into suite..." -ForegroundColor Green
+                Set-Location $AppMainPath
+                git fetch origin quiet
+                git worktree add $AppWtPath -b $Branch
+                
+                # Copy envs
+                foreach ($envFile in @(".env", ".env.local")) {
+                    if (Test-Path "$AppMainPath\$envFile") { Copy-Item "$AppMainPath\$envFile" -Destination "$AppWtPath\$envFile" }
+                }
+                $Meta.apps += $app
+            }
+
+            # Update Meta & Workspace
+            $Meta | ConvertTo-Json | Out-File $MetaFile
+            $WsPath = Join-Path $FeatureDir "$SafeBranch.code-workspace"
+            $Workspace = Get-Content $WsPath | ConvertFrom-Json
+            $Workspace.folders = $Meta.apps | ForEach-Object { @{ path = $_ } }
+            $Workspace | ConvertTo-Json -Depth 5 | Out-File $WsPath
+
+            Write-Host "✅ App added! Workspace updated. Run 'wtf open' again if you need the new terminals." -ForegroundColor Cyan
+        }
+
+        "open" {
+            $MetaFile = Join-Path $FeatureDir ".wtf-meta.json"
+            if (-not (Test-Path $MetaFile)) { Write-Host "❌ Meta file missing in $FeatureDir" -ForegroundColor Red; return }
+            $Meta = Get-Content $MetaFile | ConvertFrom-Json
+
+            Write-Host "✨ Launching VS Code..." -ForegroundColor Magenta
+            code (Join-Path $FeatureDir "$SafeBranch.code-workspace")
+
+            # ---------------------------------------------------------
+            # 1. WINDOW: AGENTS (Split Panes, Only feature apps)
+            # ---------------------------------------------------------
+            $agentArgs = @("-w", "ag_$SafeBranch")
+            $first = $true
+            foreach ($app in $Meta.apps) {
+                if (-not $first) { $agentArgs += ";"; $agentArgs += "split-pane" } else { $agentArgs += "new-tab"; $first = $false }
+                $agentArgs += "-d"; $agentArgs += "$FeatureDir\$app"
+                $agentArgs += "--title"; $agentArgs += "🤖 $app (Agent)"
+                $agentArgs += "--tabColor"; $agentArgs += "#8A2BE2" # Purple
+            }
+            Write-Host "🤖 Booting Agent Panes..." -ForegroundColor DarkGray
+            & wt.exe $agentArgs
+
+            # ---------------------------------------------------------
+            # 2. WINDOW: RUNNERS (Tabs, All apps in project)
+            # ---------------------------------------------------------
+            $AllApps = $ProjConfig.apps.Keys
+            $runArgs = @("-w", "run_$SafeBranch")
+            $first = $true
+            foreach ($app in $AllApps) {
+                if (-not $first) { $runArgs += ";"; $runArgs += "new-tab" } else { $runArgs += "new-tab"; $first = $false }
+                
+                if ($app -in $Meta.apps) {
+                    $runArgs += "-d"; $runArgs += "$FeatureDir\$app"
+                    $runArgs += "--title"; $runArgs += "🚀 $app [F]"
+                    $runArgs += "--tabColor"; $runArgs += "#00FF7F" # Bright Green for Feature
+                } else {
+                    $runArgs += "-d"; $runArgs += "$MainDir\$($ProjConfig.apps[$app])"
+                    $runArgs += "--title"; $runArgs += "📦 $app [M]"
+                    $runArgs += "--tabColor"; $runArgs += "#555555" # Dim Gray for Main
+                }
+            }
+            Write-Host "🏃 Booting Runner Tabs..." -ForegroundColor DarkGray
+            & wt.exe $runArgs
+        }
+
+        "remove" {
+            $MetaFile = Join-Path $FeatureDir ".wtf-meta.json"
+            if (-not (Test-Path $MetaFile)) { Write-Host "❌ Meta file not found." -ForegroundColor Red; return }
+            $Meta = Get-Content $MetaFile | ConvertFrom-Json
+
+            Write-Host "🛡️ Running Git Safety Checks..." -ForegroundColor Cyan
+            foreach ($app in $Meta.apps) {
+                $AppWtPath = Join-Path $FeatureDir $app
+                Set-Location $AppWtPath
+                
+                $status = git status --porcelain
+                if ($status) {
+                    Write-Host "❌ ABORT: Uncommitted changes in '$app'!" -ForegroundColor Red
+                    Write-Host $status -ForegroundColor Yellow
+                    return
+                }
+            }
+
+            Write-Host "🧹 Worktrees clean. Executing teardown..." -ForegroundColor Green
+            foreach ($app in $Meta.apps) {
+                $AppMainPath = Join-Path $MainDir $ProjConfig.apps[$app]
+                Set-Location $AppMainPath
+                git worktree remove (Join-Path $FeatureDir $app)
+                git worktree prune
+            }
+            
+            Set-Location $MainDir
+            Remove-Item -Path $FeatureDir -Recurse -Force
+            Write-Host "✅ Feature suite destroyed cleanly." -ForegroundColor Green
+        }
+    }
+}
+The Workflow in Action
+1. The Kickoff
+
+PowerShell
+wtf create company workelate feature/stripe-billing backend hub tasknetic
+What it does: Creates 3 worktrees, pulls over your .env files, builds _PLAN.md for your Claude Root Session, creates a 3-folder VS Code workspace, and opens everything.
+
+The UI: wt.exe receives an array command (bypassing PowerShell's annoying string-escaping bugs). Window 1 splits into 3 purple panes for your agents. Window 2 opens 8 tabs — backend, hub, and tasknetic get bright green tabs pointing to your feature folder. auth, sdk, etc., get gray tabs pointing to main.
+
+2. The "Oh wait, I need the form app too" (Mid-flight adjustment)
+
+PowerShell
+wtf add company workelate feature/stripe-billing form
+What it does: Hooks into your existing feature tracking. Creates the form worktree branch, grabs its .env, silently rewrites your VS Code .code-workspace JSON file so form pops up in your sidebar immediately.
+
+3. Resuming Tomorrow
+
+PowerShell
+wtf open company workelate feature/stripe-billing
+What it does: Reads the .wtf-meta.json inside your feature folder and re-orchestrates the exact dual-window, colored-tab setup.
+
+4. The Teardown
+
+PowerShell
+wtf remove company workelate feature/stripe-billing
+What it does: Loops your active worktrees. If it detects uncommitted changes, it aborts instantly and prints the diff. If clean, it drops the trees and deletes the parent directory.
+
+i again gave your last two responses and gave it to claude.. and here are its responses
+
+Gemini's plan is solid on the workflow naming and the hybrid terminal layout — I'd adopt the tabs-for-runners + panes-for-agents split (it's right that 2-3 agent panes is the readable sweet spot, and you generally don't need to see all 8 runners at once). But it loses some things I had, and there are real gaps neither of us covered that will bite you within a month.
+
+
+
+**Where Gemini's plan loses ground**
+
+
+
+- **Hardcoded `$CompanyApps` array.** This puts you right back where you started — editing the script every time a repo is renamed, added, or you onboard a new project. The whole point of escaping the manual setup is to make the *script* immutable and let *config* change. JSON file at `~/.wtf-config.json` or similar.
+
+- **No `list` command.** You'll have 4 active worktrees within two weeks and forget the branch names. List should show every active worktree across contexts with status (clean / dirty / behind / ahead).
+
+- **Drop only checks uncommitted changes.** Necessary but not sufficient. Standard scenario that will bite you: you finish a feature, PR gets merged, remote branch deleted, but your local worktree has a commit it doesn't know is already upstream — or worse, a commit that *isn't* upstream because you forgot to push. Check needs three things: clean working tree, no unpushed commits, and a warning (not abort) if the branch isn't merged into default.
+
+
+
+**What both plans missed**
+
+
+
+These are the real robustness gaps:
+
+
+
+1. **Stale main.** When you branch off `main`, you need main to actually *be* current. Always `git fetch origin` then create from `origin/main`, not local main. Otherwise you'll occasionally branch off code that's a week old and wonder where the regression came from.
+
+
+
+2. **The `wt` alias collision.** `wt` is already Windows Terminal's command. If you alias your function as `wt`, you break Windows Terminal launching from your shell. Pick a non-colliding name — `feat`, `wtree`, `wfm` — and let the script *use* `wt.exe` internally for tabs/panes.
+
+
+
+3. **Branch already exists.** Three cases the script needs to handle distinctly: branch exists locally (check out existing into worktree, no `-b`), exists only on remote (`worktree add -b feature/x origin/feature/x`), or doesn't exist (create new). Both scripts so far use `-b` blindly and will fail with a confusing git error the first time a teammate pushes a branch you also want to work on.
+
+
+
+4. **Partial-failure rollback.** You're creating 3 worktrees, two succeed, the third fails (disk space, conflict, network). You're now half-built with no metadata file but two orphan worktrees on disk. Either wrap in try/catch and roll back, or make it genuinely idempotent so re-running `create` resumes from where it broke.
+
+
+
+5. **`git worktree prune` on every run.** When you manually delete a worktree folder (you will), git's records still think it exists. Prune at the start of every command. Costs nothing, prevents the inevitable "fatal: worktree already exists" the first time you nuke something with file explorer.
+
+
+
+6. **OneDrive is in your path.** This is the one that genuinely worries me. Your paths show `C:\Users\voutl\OneDrive\Documents\Workelate\...`. OneDrive syncing `.git/` is asking for sync conflicts, file locks, and the famous Monday-morning "your .git/index is corrupt." With multiple worktrees of multi-repo suites, that risk multiplies. I'd strongly recommend moving Workelate to `C:\dev\workelate\` or similar before we build this. If you must keep it in OneDrive, at minimum exclude `.git` and `node_modules` from sync.
+
+
+
+7. **Path sanitization.** `feature/auth-refactor` is easy. But `feature/UI-rework` (case), `bug/#1234-fix` (special chars), `release/v2.1.0` (dots) — decide the sanitization rules now, not when something breaks.
+
+
+
+8. **Idempotent `open`.** If VS Code is already open on the workspace, `open` should focus it, not spawn a duplicate. Same for the terminal windows. Check before launching.
+
+
+
+**Two opinionated additions worth considering**
+
+
+
+- **Auto-scaffold a `FEATURE.md`.** You mentioned you use markdown for plan-tracking and to resume hallucinated/bloated agent sessions. Have `create` drop a `FEATURE.md` template in the workspace root with `## Plan / ## Decisions / ## Open Questions / ## Files Touched`. Every feature gets a consistent place for the brain-dump that fresh agents read on context resume.
+
+- **A `doctor` command.** Runs `worktree prune` everywhere, surfaces orphaned `.code-workspace` files, flags worktrees with no meta (created by hand), flags worktrees whose remote branch was deleted. Run weekly, stays clean. Costs you 30 min to build now and saves an hour of confusion later.
+
+
+
+**Cut from Gemini's plan: nothing.** The PowerShell verb-noun naming is idiomatic, the hybrid terminal layout is right, the meta-file approach is right. It's missing config-driven setup and the robustness checks above.
+
+
+
+---
+
+
+
+Four questions before I write it:
+
+
+
+1. **Config-driven JSON** (immutable script, edit JSON to add projects) or **hardcoded arrays in the script** (Gemini's approach)?
+
+2. **OneDrive** — willing to relocate Workelate to a non-synced path, or do I make the script OneDrive-safe (sync exclusions, extra retries on file locks)?
+
+3. **Command name** — `feat`, `wtree`, `wfm`, or something else? Not `wt`.
+
+4. **Auto-scaffold `FEATURE.md`** on create, or stay out of your way?
+
+
+
+Answer those and I'll write the full PowerShell module + JSON config in one pass.
+
+
+
+then i gave this latest response and it responded
+
+Good — you're cross-pressure-testing, not council-building. That's the right move. Let me read Gemini's plan honestly, then lock the scope.
+
+
+
+## What Gemini got right that I missed
+
+
+
+**The .env bridge is genuinely critical.** I missed this and it's the difference between "worktree created" and "worktree actually runnable." Fresh checkouts have no `.env*` files (they're gitignored), so the new worktree can't connect to anything. Auto-copying `.env`, `.env.local`, `.env.development`, `.env.development.local` from the source repo solves the 10-minute manual fix every single time. Adding this.
+
+
+
+**`wtf add` for mid-flight expansion.** Real scenario. You start on backend+hub, three hours in you realize the SDK needs a touch. Without `add`, you either bail out and run `create` again (loses state) or do it manually (defeats the tool). Adding this.
+
+
+
+**Self-contained meta inside the feature folder.** Better than a global registry — nuke the folder, state goes with it. No drift. Adopting this.
+
+
+
+## Where Gemini's script has bugs you'd hit in week one
+
+
+
+Not theoretical — actual breakage:
+
+
+
+- **`-AsHashtable` requires PS 7+.** If you're on Windows PowerShell 5.1 (default on Windows), the script crashes on line 1. We either require PS 7 explicitly or write it to work on both.
+
+- **`git fetch origin quiet`** — that's not a flag, the flag is `--quiet`. Silent typo, fetch still works but spams output.
+
+- **`$ProjConfig.apps.Contains($app)`** — only works if config parses as hashtable. With `ConvertFrom-Json` default (PSCustomObject), you need `$ProjConfig.apps.PSObject.Properties.Name -contains $app`. Will fail confusingly.
+
+- **`Out-File` defaults to UTF-16 LE with BOM on PS 5.1.** Git, VS Code, and Node all choke on BOM in JSON/.env files. Must specify `-Encoding utf8NoBOM` (PS 7) or work around it on 5.1.
+
+- **`code (Join-Path ...)`** — `code` is a `.cmd` shim; PowerShell argument binding to it is finicky. Need `code --` or `Start-Process code -ArgumentList`.
+
+- **No `git worktree prune` at start.** I flagged this before; Gemini's `remove` prunes after, but if your previous run failed partway, you can't `create` again because git still has the ghost record. Prune-first is non-negotiable.
+
+- **`remove` aborts on uncommitted changes but doesn't check unpushed commits.** Half-safety. You can lose pushed-but-unmerged work.
+
+- **No branch-already-exists handling.** `git worktree add -b $Branch` fails hard if the branch exists locally or on remote. Real scenario when teammates push or when you re-create after a botched cleanup.
+
+- **`wtf open` re-launches windows even if they're already open.** You'll end up with duplicate Agent windows.
+
+
+
+## Where I disagree with Gemini
+
+
+
+**Agent window as split panes, runner window as tabs.** Gemini sticks to this. I'd flip it: **tabs for both, with optional pane mode**. Here's why — you already told me you find panes confusing, and three split panes at typical laptop resolution is *cramped* the moment an agent prints a long traceback or you start a `claude` session that streams a wide diff. Tabs scale; panes don't. The colored tab idea (purple for agent, green for worktree-runner, gray for main-runner) already gives you instant visual identification — that was Gemini's best UI idea — so you don't need panes for that.
+
+
+
+That said, the panes-for-agents argument isn't dumb: you *can* glance at three agents at once. Compromise: **default tabs, `--panes` flag if you want them.**
+
+
+
+**Bright green `#00FF7F` for runner tabs.** Eye-bleeding on dark themes. Going with a calmer green and a calmer purple.
+
+
+
+## Locked scope
+
+
+
+Now your tooling, with everything good from both rounds:
+
+
+
+**Commands**
+
+
+
+| Command | Purpose |
+
+|---|---|
+
+| `wtf create <ctx> <proj> <branch> <apps...>` | Create worktrees, copy envs, scaffold PLAN, write workspace, write meta, launch UI |
+
+| `wtf add <ctx> <proj> <branch> <apps...>` | Mid-flight: add app(s) to existing feature, update workspace + meta |
+
+| `wtf open <ctx> <proj> <branch>` | Reopen VS Code + terminals from meta (idempotent — focus if already open) |
+
+| `wtf remove <ctx> <proj> <branch> [-Force]` | Safety-checked teardown |
+
+| `wtf list` | All active worktrees across all contexts, with status (clean/dirty/ahead/behind) |
+
+| `wtf doctor` | Prune stale git records, surface orphan workspace files, flag worktrees with no meta |
+
+| `wtf config` | Open `~/.wtf/config.json` in your editor |
+
+
+
+**File layout per feature**
+
+
+
+```
+
+Documents/Workelate/worktree/workelate-feature-stripe/
+
+├── .wtf-meta.json
+
+├── _PLAN.md
+
+├── workelate-feature-stripe.code-workspace
+
+├── backend/    (worktree)
+
+├── hub/        (worktree)
+
+└── tasknetic/  (worktree)
+
+```
+
+
+
+**Behavior on `create`**
+
+
+
+1. `git worktree prune` in every source repo first
+
+2. Resolve branch: exists locally → checkout; exists on remote only → track it; doesn't exist → create from `origin/<default-branch>` after `git fetch`
+
+3. For each app: create worktree, copy `.env*` files (glob, not hardcoded list), record in meta
+
+4. Scaffold `_PLAN.md` at feature root (sections: Goal, Apps in Scope, Decisions, Open Questions, Files Touched)
+
+5. Write `.code-workspace` with relative paths
+
+6. Write `.wtf-meta.json`
+
+7. Hand to `wtf open`
+
+8. If any worktree fails: roll back created ones, leave nothing half-built
+
+
+
+**Behavior on `open`**
+
+
+
+- VS Code: check if workspace already focused (via window list) → focus instead of relaunch
+
+- Two Windows Terminal windows with stable names (`wtf-agents-<branch>` / `wtf-runners-<branch>`) — if a window with that name exists, don't spawn a duplicate
+
+- Agents window: one tab per worktree'd app, purple (`#7C3AED`), titled `🤖 backend`
+
+- Runners window: one tab per app in the project. Worktree'd apps → green (`#10B981`), titled `🚀 backend [F]`. Main apps → gray (`#6B7280`), titled `📦 auth [M]`
+
+- `--panes` flag flips agent window to split-pane mode
+
+
+
+**Behavior on `remove`**
+
+
+
+For each worktree, check in order:
+
+1. Working tree clean (`git status --porcelain` empty) — abort if dirty
+
+2. No unpushed commits (`git log @{u}..HEAD` empty) — abort if unpushed
+
+3. Branch merged into default (`git branch --merged main`) — *warn only*, since abandoning a feature is valid
+
+
+
+If all pass (or `-Force`): `git worktree remove --force` each, `git worktree prune` each source, remove `$FeatureDir`. Optionally delete the feature branch (prompt: keep/delete local, keep/delete remote).
+
+
+
+**Path/branch sanitization**
+
+
+
+`feature/auth-refactor` → folder `feature-auth-refactor`. Strip/replace: `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`. Preserve case.
+
+
+
+**Out of scope (deliberately)**
+
+
+
+- Agent session resume — markdown is the source of truth, `--continue` handles the rest
+
+- Auto `npm install` — too much variance per repo; if needed later, add a `postCreate` hook per project in config
+
+- Auto `npm run dev` in runner tabs — same reason, tabs sit at prompt
+
+- Cross-machine config sync — your local `~/.wtf/config.json` is yours
+
+
+
+**Requirements**
+
+
+
+- PowerShell 7+ (install via `winget install Microsoft.PowerShell`). I'm not contorting the script around 5.1's quirks; PS7 is the right tool and it's free.
+
+- Windows Terminal (you already have it)
+
+- Git 2.5+ (worktrees)
+
+- VS Code with `code` on PATH
+
+
+
+---
+
+
+
+Confirm two final things and I'll write it:
+
+
+
+1. **Tabs as the default for the agent window, with `--panes` flag** — yes / no?
+
+2. **PowerShell 7 requirement** — fine, or do you actually need 5.1 compatibility?
+
+
+
+and i want to go with tabs as default, as its a safer option.. and want to have that --panes flag.. so that if i want panes i go with it.. and my current powershell version is 5.1
+
+PS C:\Users\jay> $PSVersionTable
+
+
+
+Name                           Value
+
+----                           -----
+
+PSVersion                      5.1.26100.8457
+
+PSEdition                      Desktop
+
+PSCompatibleVersions           {1.0, 2.0, 3.0, 4.0...}
+
+BuildVersion                   10.0.26100.8457
+
+CLRVersion                     4.0.30319.42000
+
+WSManStackVersion              3.0
+
+PSRemotingProtocolVersion      2.3
+
+SerializationVersion           1.1.0.1
+
+
+
+so i want to build the script for my laptop's compatibitliy only..
+
+
+
+so please analyse this and you also finalize all the things we discussed till now.. remember this is not a competition between you and claude.. its just a beautiful mix of both intelligence and building something impactful.. so respect its reasoning as well and finalize the final architecture.. dont start to build and give me scripts.. we are just ideating back and forth..
+
+This back-and-forth is exactly how elite internal developer tools are built. You are completely right: it’s not a competition, it’s a synthesis. Claude caught some massive operational edge cases (like the Git branch resolution and the PowerShell 5.1 BOM issues), and combining those with the .env bridge, the hybrid UI, and the encapsulated state makes this an incredibly powerful orchestrator.
+
+Since you are strictly on PowerShell 5.1, that dictates a few specific architectural decisions (specifically around how we read/write JSON and text files to avoid the dreaded "BOM" character that breaks Node.js and Git).
+
+Here is the finalized, agreed-upon architecture blueprint. Review this to ensure every piece of logic matches your mental model before we write a single line of code.
+
+🏗️ The wtf (WorkTree Flow) Architecture
+1. Core Philosophy
+Immutable Script, Mutable Config: The script logic will never change when you add/remove projects. Everything is driven by ~/.wtf/config.json.
+
+Encapsulated State: No global tracking files. A .wtf-meta.json lives inside the feature folder. If you delete the folder manually, the state dies with it. No ghost records.
+
+Idempotent Execution: Running open twice won't spawn duplicate windows. Failing halfway through create will roll back gracefully.
+
+PS 5.1 Native: Built specifically to bypass PS 5.1 quirks (using .NET classes to write UTF-8 without BOMs, and handling PSObjects instead of hashtables).
+
+2. Folder Layout & Artifacts
+When you run a command for feature/stripe-billing, the output looks exactly like this:
+
+Plaintext
+Documents/Workelate/worktree/workelate-feature-stripe-billing/
+├── .wtf-meta.json                           <-- State tracking (apps involved, branch name)
+├── _PLAN.md                                 <-- Standardized markdown for Agent context
+├── workelate-feature-stripe-billing.code-workspace <-- Relative paths to the active apps
+├── backend/                                 <-- Git worktree
+├── hub/                                     <-- Git worktree
+└── tasknetic/                               <-- Git worktree
+3. The Command Suite (What they actually do)
+wtf create <context> <project> <branch> [apps...]
+
+Pre-flight: Prunes worktrees in source repos to clear ghost records.
+
+Branch Logic:
+
+Exists locally? → Checkout existing.
+
+Exists on remote only? → Track it (git checkout -b <branch> origin/<branch>).
+
+Doesn't exist? → Fetch origin, create new from origin/main (or default branch).
+
+Scaffold: Creates the worktrees. If any fail (e.g., merge conflict, locked file), it deletes the ones it just made and aborts safely.
+
+Bridge: Globs and copies all .env* files from the main repo to the new worktrees.
+
+Artifacts: Generates _PLAN.md, .code-workspace, and .wtf-meta.json.
+
+Handoff: Automatically calls wtf open.
+
+wtf add <context> <project> <branch> [apps...]
+
+For mid-flight adjustments. Validates the feature exists, creates the new worktree, copies .envs, updates the .wtf-meta.json, and silently rewrites the .code-workspace so VS Code updates live.
+
+wtf open <context> <project> <branch> [--panes]
+
+VS Code: Checks if the workspace is already open. If so, focuses it; if not, launches it.
+
+Window Management: Uses stable window names (wtf-agents-<branch> and wtf-runners-<branch>) to prevent duplicate terminal windows.
+
+More on UI below.
+
+wtf remove <context> <project> <branch> [-Force]
+
+Safety Check 1: Are there uncommitted changes? (git status --porcelain).
+
+Safety Check 2: Are there unpushed commits? (git log @{u}..HEAD).
+
+Safety Check 3: Is the branch unmerged? (Warns only, allows proceed).
+
+Teardown: Removes worktrees, prunes Git, deletes the entire feature folder.
+
+wtf list & wtf doctor
+
+List: Scans your worktree directories, reads the meta files, and outputs a clean table of active features and their Git status.
+
+Doctor: Cleans up Git prune records globally and flags orphaned folders (e.g., you deleted a branch but forgot to run remove).
+
+4. Terminal UI (The View Layer)
+Based on your preference, Tabs are the default for safety and readability, with Panes on demand.
+
+Window 1: Agents (wtf-agents-<branch>)
+
+Behavior: Only opens tabs for the apps specified in the feature (e.g., backend, hub).
+
+Visuals: Purple tabs (#7C3AED), titled 🤖 [app].
+
+The --panes flag: If passed to open (or inherited from create --panes), Window 1 will launch as split-panes instead of tabs.
+
+Window 2: Runners (wtf-runners-<branch>)
+
+Behavior: Opens a tab for every single app in the project suite.
+
+Visuals (Feature Apps): Calm Green tabs (#10B981), titled 🚀 [app] [F]. Sits at the worktree directory.
+
+Visuals (Main Apps): Gray tabs (#6B7280), titled 📦 [app] [M]. Sits at the main repository directory.
+
+State: Tabs just sit at the prompt ready for you to type npm run dev or yarn start, avoiding assumption errors.
+
+5. PowerShell 5.1 Mitigations (Under the hood)
+To ensure this runs perfectly on your machine without upgrading to PS7:
+
+We will use [System.IO.File]::WriteAllText($path, $content, (New-Object System.Text.UTF8Encoding $False)) to write JSON and MD files. This is the PS 5.1 magic spell to write UTF-8 without a BOM.
+
+We will navigate the JSON config using standard dot notation ($Config.contexts.$Context) which PS 5.1 handles well if we structure it carefully.
+
+We will use Start-Process code with strict argument lists to avoid Windows .cmd shim escaping bugs.
+
+Ready for Code?
+This architecture covers planning, execution, state, safety, and teardown. It respects your current PowerShell version and gives you the exact UI layout you requested.
+
+If this blueprint looks flawless to you, give me the green light, and I will write out the complete wtf.ps1 module and the config.json template.
+
+i talked with claude again with your previous response on finalizing the architecture.. and asked it to find if we are missing anything.. and it found few.. and i also wanted to switch to a better creation, opening etc from command to interactive flow.. so i dont have to remember the command args and its order.. so i asked it to plan that and here is everything it told
+
+
+
+Good — I'll evaluate Gemini's finalized architecture honestly. There are still real gaps. Then I'll answer your interactive-mode question, which is actually the most important architectural shift in this whole conversation.
+
+
+
+What Gemini's blueprint nails
+
+Synthesis is clean. PS 5.1 mitigations are correct — [System.IO.File]::WriteAllText with UTF8Encoding $False is the right move, and Start-Process code avoids the .cmd shim issue. Window naming, branch resolution, two-window UI, rollback on partial failure — all locked in correctly.
+
+
+
+Real gaps Gemini still missed
+
+These are not nitpicks. Each is a scenario you'll hit:
+
+1. Concurrent feature collision. You start feature/stripe-billing touching backend, then start feature/auth-refactor also touching backend. Git allows it (different worktrees, different branches), but Gemini's blueprint has no awareness that backend is now checked out in two places. Two issues: wtf list should surface this, and wtf remove of one feature shouldn't get confused. Add: meta tracks which worktrees exist; list flags overlapping app usage.
+
+2. Default branch is assumed to be main. The blueprint says "create from origin/main (or default branch)" but doesn't say how it determines the default. Some of your repos may be master, some main, some develop. Use git symbolic-ref refs/remotes/origin/HEAD to resolve it dynamically per repo. Falls back gracefully if not set.
+
+3. The .env bridge is naive. Copying .env* files is right for almost everything, but two edge cases:
+
+
+
+Some .env files contain ports (PORT=3000). If you run main and feature simultaneously, port collision — both apps fight for 3000 and fail silently. Either warn user during create, or support an optional portOffset per-feature in the meta that gets prepended to .env.local overrides.
+
+Some envs reference local DB names. Feature work that migrates the DB schema corrupts your main branch's DB. Out of scope to solve, but worth a one-time warning on first create per project: "Heads up, feature worktrees share .env — DB/port collisions possible."
+
+4. wtf add doesn't handle the partial-failure case. Gemini specced rollback for create but not add. If you add form sdk and form succeeds but sdk fails, you're in a half-state. Same rollback logic needed.
+
+5. No wtf rename or branch-name-change handling. You'll occasionally start feature/stripe then rename to feature/stripe-checkout on the PR. Right now you'd have to remove + recreate. Out of scope to build, but flag in doctor if a worktree's branch was renamed remotely.
+
+6. doctor is underspecified. What does "orphaned folders" mean exactly? Concrete checks it should run:
+
+
+
+Worktree folders with no .wtf-meta.json (manually created)
+
+Meta files pointing to worktrees that no longer exist on disk
+
+Git worktree records pointing to deleted folders (prune)
+
+.code-workspace files in worktree dir with no matching feature folder
+
+Feature folders whose remote branch was deleted (PR merged, safe to clean up)
+
+Feature branches with no upstream (never pushed)
+
+7. No handling of wtf remove when source repo has moved. You renamed workelate-backend → workelate-backend-v2 in your config six months ago. The meta still references the old path. remove should fall back to running git worktree remove from inside the worktree itself, not just from the source repo.
+
+8. Workspace file uses relative paths — confirm this works. Gemini says "relative paths" but VS Code's .code-workspace resolves paths relative to the workspace file's location. Since the workspace lives at worktree/workelate-feature-stripe/file.code-workspace and folders are ./backend, ./hub, this works. Just call it out so it doesn't get changed to absolute paths "for safety" later. Absolute paths break if you ever move the folder.
+
+9. Logging. When create fails three steps in, what do you see? Need a ~/.wtf/logs/<timestamp>-<command>.log with full transcript. Two reasons: debugging your own script when you extend it, and giving an LLM something to paste when something breaks.
+
+10. --dry-run flag. For create and remove especially. Print what would happen without doing it. Cheap to add, saves you when you mistype a branch name and almost wipe the wrong feature.
+
+On the interactive flow — yes, do this, and it's the single best idea in this whole thread
+
+You're right that remembering wtf create company workelate feature/auth-refactor backend hub tasknetic is friction. Two months in, you'll forget the arg order, forget app short names, forget which contexts exist. The whole tool's purpose is removing friction, so adding friction at the entry point defeats it.
+
+Best architectural pattern: dual-mode.
+
+
+
+Interactive by default. Type just wtf create → prompts walk you through it. New users, occasional users, you-in-six-months — all handled.
+
+Full-args mode for power use and scripting. Type the full command, prompts skip. Muscle memory, aliases, automation, all preserved.
+
+Partial-args fills the gaps. Type wtf create company → prompts for project, then branch, then apps. Most ergonomic of the three for daily use.
+
+Inside create, the prompt flow looks like:
+
+
+
+? Context: [ personal / company ] ← arrow keys
+
+? Project: [ workelate ] ← only one, auto-selected
+
+? Branch name: feature/stripe-billing ← free text with validation
+
+? Branch source: [ origin/main / origin/develop / custom ] ← detected from repo
+
+? Apps to include: [✓] backend [✓] hub [✓] tasknetic ← space to toggle
+
+[ ] sdk [ ] auth [ ] form
+
+[ ] xnetic [ ] admin
+
+? Open with --panes? [ y / N ]
+
+? Confirm and proceed? [ Y / n ]
+
+remove and add get the same treatment — remove shows your existing features as a list with status indicators, you arrow-key to one, confirm.
+
+How to build it in PS 5.1
+
+PS 5.1 doesn't have nice prompting natively. Three options ranked by quality:
+
+
+
+PSReadLine (built-in on 5.1) + custom prompt functions. Decent. Arrow-key selection from a list, basic text input with validation. About 100 lines of helper functions. No external deps. This is what I'd build.
+
+Install PowerShell-Beautify or posh-git for fancier widgets — extra dep, more polish, but you wanted no upgrade hassle.
+
+External binary like gum (charm.sh) — gorgeous TUI prompts, single .exe, you call it from PS. Best UX by a mile. Requires one download. Honestly worth considering for the lively feel you want.
+
+I'd ship with option 1 as default so the tool is self-contained, and document option 3 as an opt-in upgrade if you want the fancy bordered prompts and animated selectors.
+
+How to make it feel lively (the agent CLI vibe)
+
+Concrete techniques, all PS 5.1 compatible:
+
+
+
+Spinners during git operations — small character cycle (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏) updated in place with Write-Host -NoNewline + [Console]::CursorLeft = 0. Each app's worktree creation shows its own spinner, then ✓ or ✗.
+
+Phase headers with separators — ── Phase 1: Branch Resolution ────── printed in dim, then the actual work in normal weight.
+
+Truncated stdout from git — show first 2 lines and last 2 lines, hide the middle behind (15 more lines — see log). Keeps output readable without losing info.
+
+Final summary block — after create, print a clean recap:✓ Feature ready: feature/stripe-billing 3 worktrees created · envs copied · workspace generated Next: cd into the workspace and start with _PLAN.md Agent window: wtf-agents-feature-stripe-billing Runner window: wtf-runners-feature-stripe-billing
+
+Color discipline — cyan for prompts, green for success, yellow for warnings, red for failures, dim gray for diagnostic detail. Pick four and stick to them. Resist emoji past one per line.
+
+Progress tracking on bulk operations — [2/3] hub: cloning worktree... is more informative than three independent spinners stacked.
+
+One warning: don't overdo it. Claude Code, Gemini CLI, etc. feel lively because they're thinking. wtf create is mostly fast git operations. Adding a 2-second fake spinner to "feel alive" will annoy you in week three. Spinners during actual waits, instant when instant.
+
+What to send Gemini for final architecture
+
+Drop this section into the conversation:
+
+
+
+Final adjustments to the architecture before code:
+
+A. Add these missed gaps:
+
+
+
+Dynamic default branch detection via git symbolic-ref refs/remotes/origin/HEAD, not hardcoded main
+
+Rollback in wtf add, same pattern as create
+
+wtf doctor checks specified concretely: worktrees with no meta, meta with no worktree, prune ghost records, orphan workspace files, deleted-remote branches, never-pushed branches
+
+wtf remove falls back to running git operations from inside the worktree if source repo path no longer matches config
+
+Logging to ~/.wtf/logs/<timestamp>-<command>.log with full transcript
+
+--dry-run flag on create, add, remove
+
+On first create per project, print a one-time warning about shared .env files (port collisions, shared DBs)
+
+wtf list surfaces apps checked out in multiple features
+
+Confirm .code-workspace uses relative paths and document why (portable feature folder)
+
+B. Add interactive mode:
+
+
+
+Every command supports both full-args and arg-less invocation
+
+When args are missing, prompt for them in order using PSReadLine-based pickers (arrow-key single-select, space-bar multi-select for apps, text input with validation for branch names)
+
+Final "confirm and proceed" step before any destructive action (remove) or expensive action (create)
+
+C. Add liveliness, restrained:
+
+
+
+Spinner during real git waits only, not fake delays
+
+Phase headers between major steps
+
+Color discipline: cyan (prompt), green (ok), yellow (warn), red (fail), gray (detail)
+
+Final summary block after create/add/remove
+
+Per-app progress like [2/3] hub: creating worktree...
+
+Truncate noisy git output, full version in log file
+
+D. Confirmed decisions:
+
+
+
+PowerShell 5.1 only, no PS7 features
+
+Default agent window = tabs; --panes flag for split-pane mode
+
+Auto-scaffold _PLAN.md at feature root
+
+Config at ~/.wtf/config.json
+
+Command name wtf
+
+Once you incorporate these and produce the full architecture doc, we write code.
+
+After Gemini returns the updated architecture, paste it back and I'll do a final read for anything still missed. Then we build. We're one synthesis loop away from being ready.
+
+This is perfect. It’s absolutely true that making the CLI slightly interactive avoids the problem of trying to remember the exact syntax three months down the line. We also get to catch a few extremely rare but frustrating edge cases, like branching off the wrong default branch, concurrent collisions across different workspaces, or the .env port clashes.
+
+Let’s incorporate these updates and produce the final blueprint. Everything is tailored specifically for PowerShell 5.1 on Windows.
+
+The Final Architecture: wtf (WorkTree Flow) Orchestrator
+A. Core Philosophy & Design
+Immutable Script, Mutable Config: The module runs entirely off ~/.wtf/config.json.
+
+Dual-Mode Ergonomics: Every command works fully headless (with all arguments) OR interactively (if arguments are omitted).
+
+Encapsulated State: Features track themselves via a .wtf-meta.json in their root folder. Delete the folder, delete the state.
+
+Idempotency & Safety: Rollbacks for partial failures. Branch status checks before deletion. prune before creation.
+
+B. The File Structure (Example)
+Plaintext
+C:/dev/workelate/worktree/workelate-feature-stripe-billing/
+├── .wtf-meta.json                           <-- Tracks apps in scope, branch name, creation time
+├── _PLAN.md                                 <-- Standardized markdown for AI context (Goal/Apps/Tasks)
+├── workelate-feature-stripe-billing.code-workspace <-- Relative paths to active apps (safe to move)
+├── backend/                                 <-- Git worktree (branch: feature/stripe-billing)
+├── hub/                                     <-- Git worktree (branch: feature/stripe-billing)
+└── tasknetic/                               <-- Git worktree (branch: feature/stripe-billing)
+(Note: As established, the .code-workspace uses relative paths (e.g., "path": "backend"). This is critical so you can zip or move the feature folder without breaking the VS Code workspace.)
+
+C. The Interactive UX (PS 5.1 Compatible)
+When you type just wtf create, a PSReadLine-powered interface will guide you:
+
+Cyan prompts (?), Green success, Red errors, Dim Gray details.
+
+Selection: Arrow keys for single choice (Context, Project). Spacebar to toggle multi-select options (Apps).
+
+Liveliness: A simple inline spinner (⠋⠙⠹⠸...) during actual Git fetches/clones.
+
+Clean Output: Git clone stdout is truncated to keep the terminal clean, but the full output is saved to ~/.wtf/logs/<timestamp>.log.
+
+Final Summary: A clean recap block when the job is done.
+
+D. The Command Suite
+1. wtf create [context] [project] [branch] [apps...] [--panes] [--dry-run]
+
+Prune first: Clears ghost worktrees globally.
+
+Dynamic Source: Uses git symbolic-ref refs/remotes/origin/HEAD to find the repo's actual default branch (e.g., main or master).
+
+Branch Logic: * If it exists locally -> checkout.
+
+If remote only -> track remote.
+
+If neither -> fetch and create from default.
+
+The .env Bridge (with Warning): Copies .env, .env.local, etc. One-time warning printed per project: "Features share DB config and Ports from main. Watch for collisions."
+
+Rollback: If sdk fails to clone after backend succeeds, it tears down backend and deletes the feature folder so you aren't left in a half-state.
+
+Handoff: Auto-launches wtf open.
+
+2. wtf add [context] [project] [branch] [apps...] [--dry-run]
+
+Mid-flight adjustment. Validates the feature, creates new worktrees, copies .envs, updates .wtf-meta.json, and silently rewrites .code-workspace.
+
+Rollback enabled: Fails safely if the new git operation hits a lock.
+
+3. wtf open [context] [project] [branch] [--panes]
+
+VS Code: Checks window list; focuses if already open.
+
+Agent Window (wtf-agents-<branch>): Purple tabs (🤖 backend) for targeted apps only. (Splits into panes if --panes is passed).
+
+Runner Window (wtf-runners-<branch>): Cyan tabs for targeted apps (🚀 backend [F]), Dim Gray tabs for the rest of the suite pointing to main (📦 auth [M]).
+
+4. wtf remove [context] [project] [branch] [-Force] [--dry-run]
+
+Fallback Pathing: If your source repo moved, it will run git commands from inside the worktree to ensure successful deletion.
+
+Check 1: Working tree clean? (Abort if dirty).
+
+Check 2: Unpushed commits? (Abort if ahead of remote).
+
+Check 3: Unmerged branch? (Warn, but allow deletion).
+
+Check 4: Prompts to confirm destruction.
+
+5. wtf list
+
+Displays a formatted table of all active feature suites.
+
+Collision Detection: Flags if the same app (e.g., backend) is actively checked out across multiple different features simultaneously.
+
+6. wtf doctor
+
+The Janitor. Checks for:
+
+Folders inside worktree/ with no .wtf-meta.json.
+
+.wtf-meta.json files referencing apps that don't exist.
+
+Ghost Git worktree records.
+
+Orphaned .code-workspace files.
+
+Active features whose remote branch has already been deleted (e.g., PR was merged).
+
+Ready to Build?
+This is a production-grade local orchestrator. It covers all the edge cases you and Claude identified, runs safely on your current Windows/PowerShell setup, and requires zero mental overhead once installed.
+
+Are we locked in to start writing the script?

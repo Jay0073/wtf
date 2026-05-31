@@ -1,0 +1,24 @@
+[wtf config] started 2026-05-30T18:32:06.7554506+05:30
+[18:32:06] DETAIL: No config yet — let's set up your first root folder.
+[18:32:17] FAIL: No config file yet — use the menu to create one.
+[18:32:23] DETAIL: main:      
+[18:32:23] DETAIL: worktrees: 
+[18:32:23] INFO: Single repos (auto): (none)
+[18:32:33] PHASE: Add a root (context)
+[18:33:32] OK: created C:\Users\jay\Documents\projects\worktrees
+[18:33:32] CONFIG saved to C:\Users\jay\.wtf\config.json
+[18:33:32] OK: context 'pigeon feed' added
+[18:33:32] DETAIL: Discovered 13 single repo(s): alerts-manager, browser-agent, browser-use, citysense, my-portfolio, omni_browser, pigeon-bot-service, pigeon-claw, Pigeon-Feed, resume, second-brain, skyvern, vortex-emulator
+[18:33:32] DETAIL: Use ‘Define a multi-repo project’ to group repos like pigeon.
+[18:34:37] PHASE: Preview
+[18:34:37] INFO: bot → pigeon-bot-service
+[18:34:37] INFO: claw → pigeon-claw
+[18:34:37] INFO: feed → Pigeon-Feed
+[18:34:47] CONFIG saved to C:\Users\jay\.wtf\config.json
+[18:34:47] OK: saved 'pigeon feed'
+[18:34:51] PHASE: pigeon feed
+[18:34:51] DETAIL: main:      C:\Users\jay\Documents\projects
+[18:34:51] DETAIL: worktrees: C:\Users\jay\Documents\projects\worktrees
+[18:34:51] INFO: Multi-repo projects:
+[18:34:51] INFO: Single repos (auto): alerts-manager, browser-agent, browser-use, citysense, my-portfolio, omni_browser, resume, second-brain, skyvern, vortex-emulator
+[18:35:04] OK: opened C:\Users\jay\.wtf\config.json in VS Code
