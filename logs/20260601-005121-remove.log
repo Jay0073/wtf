@@ -1,0 +1,37 @@
+[wtf remove] started 2026-06-01T00:51:21.3780757+05:30
+[00:51:24] PHASE: Safety checks
+[00:51:24] STEP: backend
+[00:51:24] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\backend]: git status --porcelain
+[00:51:24] GIT exit=0
+[00:51:24] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\backend]: git log --oneline @{u}..HEAD
+[00:51:24] GIT exit=0
+[00:51:24] OK:   clean & pushed
+[00:51:24] STEP: presentations
+[00:51:24] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\presentations]: git status --porcelain
+[00:51:24] GIT exit=0
+[00:51:24] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\presentations]: git log --oneline @{u}..HEAD
+[00:51:24] GIT exit=0
+[00:51:24] OK:   clean & pushed
+[00:51:26] PHASE: Teardown
+[00:51:26] STEP: backend
+[00:51:26] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree remove --force C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\backend
+[00:51:27] GIT exit=255
+[00:51:27] GIT stderr: error: failed to delete 'C:/Users/jay/Documents/workelate/worktrees/workelate-feat-last-test/backend': Permission denied
+[00:51:27] WARN:   worktree remove failed; trying from inside the worktree
+[00:51:27] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\backend]: git worktree remove --force .
+[00:51:27] GIT exit=128
+[00:51:27] GIT stderr: fatal: not a git repository (or any of the parent directories): .git
+[00:51:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree prune
+[00:51:27] GIT exit=0
+[00:51:27] OK:   removed
+[00:51:27] STEP: presentations
+[00:51:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree remove --force C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\presentations
+[00:51:27] GIT exit=255
+[00:51:27] GIT stderr: error: failed to delete 'C:/Users/jay/Documents/workelate/worktrees/workelate-feat-last-test/presentations': Permission denied
+[00:51:27] WARN:   worktree remove failed; trying from inside the worktree
+[00:51:27] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-last-test\presentations]: git worktree remove --force .
+[00:51:27] GIT exit=128
+[00:51:27] GIT stderr: fatal: not a git repository (or any of the parent directories): .git
+[00:51:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree prune
+[00:51:27] GIT exit=0
+[00:51:27] OK:   removed
