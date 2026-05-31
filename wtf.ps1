@@ -56,6 +56,18 @@ $script:TabColors = @{
     RunnerMain = '#6B7280'
 }
 
+# A git worktree only checks out TRACKED files, so gitignored-but-useful things
+# (.env, graphify-out/, local config, certs, data) don't come along. wtf copies
+# them from main so the worktree behaves like main — EXCEPT these heavy /
+# regenerable trees, which you rebuild (npm i, etc.) rather than copy.
+# Override per machine by setting a top-level "copySkip" array in config.json.
+$script:WtfCopySkipDefault = @(
+    'node_modules','.git','.venv','venv','env','__pycache__','.mypy_cache',
+    '.pytest_cache','.ruff_cache','dist','build','out','.next','.nuxt','.turbo',
+    '.svelte-kit','.angular','.parcel-cache','coverage','.nyc_output','target',
+    'vendor','bin','obj','.gradle','.dart_tool','Pods','DerivedData','.terraform'
+)
+
 # ============================================================================
 # ENCODING: UTF-8 WITHOUT BOM
 # ============================================================================
@@ -850,29 +862,66 @@ function Add-WtfGitExclude {
 }
 
 # ============================================================================
-# ENV BRIDGE
+# MAIN → WORKTREE BRIDGE (gitignored-but-useful files)
 # ============================================================================
 
-function Copy-WtfEnvFiles {
+function Get-WtfCopySkip {
+    # Default skip list, optionally extended/replaced by config's top-level "copySkip".
+    param($Config)
+    if ($Config -and (Test-ObjectHasKey $Config 'copySkip')) {
+        $custom = @(Get-ObjectValue $Config 'copySkip')
+        if ($custom.Count -gt 0) { return $custom }
+    }
+    return $script:WtfCopySkipDefault
+}
+
+function Copy-WtfIgnoredFiles {
     <#
     .SYNOPSIS
-        Copy all .env* files from source to destination.
+        Mirror gitignored-but-useful files from a source repo into a fresh worktree
+        (which only has TRACKED files). Brings .env, graphify-out/, local config,
+        certs, data, etc. — but SKIPS heavy regenerable trees (node_modules, dist…)
+        so worktrees stay small and you rebuild those instead.
     .OUTPUTS
-        Array of copied file names.
+        Array of top-level relative paths copied.
     #>
     param(
         [Parameter(Mandatory)][string]$Source,
-        [Parameter(Mandatory)][string]$Destination
+        [Parameter(Mandatory)][string]$Destination,
+        [string[]]$Skip = @()
     )
+    if (-not (Test-WtfIsGitRepo $Source)) { return @() }
+    # --directory collapses a fully-ignored folder to one entry (e.g. graphify-out/),
+    # so we decide skip/copy per top-level item instead of walking every file.
+    $r = Invoke-WtfGit -WorkingDir $Source -GitArgs @('ls-files','--others','--ignored','--exclude-standard','--directory')
+    if (-not $r.Ok -or -not $r.Stdout) { return @() }
+
+    $skipSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($s in $Skip) { [void]$skipSet.Add($s.Trim('/','\')) }
+
     $copied = @()
-    $envFiles = Get-ChildItem -Path $Source -Filter '.env*' -Force -File -ErrorAction SilentlyContinue
-    foreach ($f in $envFiles) {
-        # Skip examples — those are committed templates
-        if ($f.Name -match '\.(example|sample|template)$') { continue }
-        $dest = Join-Path $Destination $f.Name
-        Copy-Item -Path $f.FullName -Destination $dest -Force
-        $copied += $f.Name
-        Write-WtfLog "ENV: copied $($f.Name) to $Destination"
+    foreach ($entry in ($r.Stdout -split "`n")) {
+        $rel = $entry.Trim()
+        if (-not $rel) { continue }
+        $rel = $rel.TrimEnd('/')
+        $top = ($rel -split '[\\/]')[0]
+        if ($skipSet.Contains($top)) { continue }
+
+        $src = Join-Path $Source $rel
+        $dst = Join-Path $Destination $rel
+        try {
+            if (Test-Path $src -PathType Container) {
+                Copy-Item -Path $src -Destination $dst -Recurse -Force -ErrorAction Stop
+            } else {
+                $dstDir = Split-Path $dst -Parent
+                if ($dstDir -and -not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir -Force | Out-Null }
+                Copy-Item -Path $src -Destination $dst -Force -ErrorAction Stop
+            }
+            $copied += $rel
+            Write-WtfLog "COPY-IGNORED: $rel → $Destination"
+        } catch {
+            Write-WtfLog "COPY-IGNORED FAILED: $rel — $_"
+        }
     }
     return $copied
 }
@@ -1295,14 +1344,58 @@ function Select-WtfProject {
     return Read-WtfChoice -Prompt "Project" -Options $names
 }
 
+function Get-WtfExistingBranches {
+    <#
+    .SYNOPSIS
+        Union of local + remote branch names across the given repos (remote names
+        stripped of their remote prefix). Used to offer existing branches —
+        a peer's, or one you worked on before — when creating a worktree.
+    #>
+    param([string[]]$Repos)
+    $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($repo in @($Repos)) {
+        if (-not (Test-WtfIsGitRepo $repo)) { continue }
+        $loc = Invoke-WtfGit -WorkingDir $repo -GitArgs @('branch','--format=%(refname:short)')
+        if ($loc.Ok) { foreach ($b in ($loc.Stdout -split "`n")) { if ($b.Trim()) { [void]$set.Add($b.Trim()) } } }
+        $rem = Invoke-WtfGit -WorkingDir $repo -GitArgs @('branch','-r','--format=%(refname:short)')
+        if ($rem.Ok) {
+            foreach ($b in ($rem.Stdout -split "`n")) {
+                $b = $b.Trim()
+                if (-not $b -or $b -match '/HEAD$') { continue }
+                [void]$set.Add(($b -replace '^[^/]+/',''))   # origin/feat/x -> feat/x
+            }
+        }
+    }
+    return @($set | Sort-Object)
+}
+
 function Select-WtfBranch {
-    param([string]$Provided = '')
+    param(
+        [string]$Provided = '',
+        [string[]]$SourceRepos = @()
+    )
     if ($Provided) {
         $err = Test-WtfBranchName $Provided
         if ($err) { Write-WtfFail $err; return $null }
         return $Provided
     }
-    return Read-WtfText -Prompt "Branch name" -Hint "e.g. feature/auth-refactor" -Validator { param($v) Test-WtfBranchName $v }
+
+    # Offer a picker only when the branch list is small enough to scroll. For big
+    # repos (hundreds of branches) that's unusable, so fall back to typing — an
+    # existing/peer/remote name still works (Resolve-WtfBranchSource checks it out).
+    $existing = @(Get-WtfExistingBranches -Repos $SourceRepos)
+    if ($existing.Count -ge 1 -and $existing.Count -le 30) {
+        $NEWB = '＋ New branch…'
+        $pick = Read-WtfChoice -Prompt "Branch (new, or an existing one to work on)" -Options (@($NEWB) + $existing)
+        if (-not $pick) { return $null }
+        if ($pick -ne $NEWB) { return $pick }
+        return Read-WtfText -Prompt "New branch name" -Hint "e.g. feature/auth-refactor" -Validator { param($v) Test-WtfBranchName $v }
+    }
+    if ($existing.Count -gt 30) {
+        Write-WtfDetail "$($existing.Count) branches exist here — type a name below."
+        Write-WtfDetail "A new name starts a fresh branch; an existing/peer/remote name checks that out."
+    }
+    return Read-WtfText -Prompt "Branch name (new or existing)" -Hint "e.g. feature/auth-refactor" -Validator { param($v) Test-WtfBranchName $v }
 }
 
 function Select-WtfApps {
@@ -1456,10 +1549,6 @@ function Invoke-WtfCreate {
     if (-not $pick) { return }
     $kind = if ($pick -eq $NEW) { 'new' } elseif ($pick -in $multiNames) { 'multi' } else { 'mono' }
 
-    # ── Branch ────────────────────────────────────────────────────────
-    $Branch = Select-WtfBranch $Branch
-    if (-not $Branch) { return }
-
     # ── Resolve worktree repos + dependency repos ─────────────────────
     $projectName = $pick
     $worktreeMap = [ordered]@{}   # short -> relPath (branched)
@@ -1497,10 +1586,16 @@ function Invoke-WtfCreate {
         }
     }
 
-    $isMono      = ($kind -eq 'mono')
+    $isMono  = ($kind -eq 'mono')
+    $wtNames = @($worktreeMap.Keys)
+
+    # ── Branch (new, or pick an existing one — yours, a peer's, or remote) ──
+    $srcRepos = foreach ($rel in $worktreeMap.Values) { Join-Path $mainDir $rel }
+    $Branch = Select-WtfBranch -Provided $Branch -SourceRepos @($srcRepos)
+    if (-not $Branch) { return }
+
     $featureDir  = Get-WtfFeatureDir    $config $Context $projectName $Branch
     $workspaceFp = Get-WtfWorkspacePath $config $Context $projectName $Branch
-    $wtNames     = @($worktreeMap.Keys)
 
     if (Test-Path $featureDir) {
         Write-WtfFail "Feature directory already exists: $featureDir"
@@ -1527,6 +1622,7 @@ function Invoke-WtfCreate {
 
     $created = [System.Collections.ArrayList]::new()
     $envSummary = @()
+    $copySkip = Get-WtfCopySkip $config
     $idx = 0
     foreach ($short in $wtNames) {
         $idx++
@@ -1550,18 +1646,20 @@ function Invoke-WtfCreate {
         }
         [void]$created.Add(@{ App = $short; Src = $appSrc; Dst = $appDst })
 
-        $envs = Copy-WtfEnvFiles -Source $appSrc -Destination $appDst
-        if ($envs.Count -gt 0) {
-            Write-WtfOk ("$short — env copied: " + ($envs -join ', '))
-            $envSummary += "$short ($($envs.Count))"
+        $copied = Copy-WtfIgnoredFiles -Source $appSrc -Destination $appDst -Skip $copySkip
+        if ($copied.Count -gt 0) {
+            $shown = if ($copied.Count -gt 6) { ($copied[0..5] -join ', ') + " (+$($copied.Count - 6) more)" } else { $copied -join ', ' }
+            Write-WtfOk "$short — copied from main: $shown"
+            $envSummary += "$short ($($copied.Count))"
         }
     }
 
-    # ── Env collision warning (first time per project) ────────────────
+    # ── Collision warning (first time per project) ────────────────────
     $envWarnFlag = Join-Path $script:WtfRoot ".envwarn-$projectName"
     if ($envSummary.Count -gt 0 -and -not (Test-Path $envWarnFlag)) {
-        Write-WtfWarn "Heads up: features share .env with main. Watch for PORT or DB collisions."
-        Write-WtfDetail "If both feature and main run at once, override PORT in the feature .env.local."
+        Write-WtfWarn "Heads up: this worktree got a COPY of main's gitignored files (.env, etc.)."
+        Write-WtfDetail "If you run feature + main at once, watch for PORT/DB collisions (override PORT here)."
+        Write-WtfDetail "Heavy regenerable dirs (node_modules, dist…) were skipped — rebuild them (e.g. npm i)."
         Write-WtfFile -Path $envWarnFlag -Content (Get-Date -Format o)
     }
 
@@ -1778,8 +1876,11 @@ function Invoke-WtfAdd {
         $ok = New-WtfWorktree -RepoDir $appSrc -TargetDir $appDst -Branch $Branch -Source $src
         if (-not $ok) { Invoke-WtfAddRollback -Created $created; return }
         [void]$created.Add(@{ App = $short; Src = $appSrc; Dst = $appDst })
-        $envs = Copy-WtfEnvFiles -Source $appSrc -Destination $appDst
-        if ($envs.Count -gt 0) { Write-WtfOk ("$short — env copied: " + ($envs -join ', ')) }
+        $copied = Copy-WtfIgnoredFiles -Source $appSrc -Destination $appDst -Skip (Get-WtfCopySkip $config)
+        if ($copied.Count -gt 0) {
+            $shown = if ($copied.Count -gt 6) { ($copied[0..5] -join ', ') + " (+$($copied.Count - 6) more)" } else { $copied -join ', ' }
+            Write-WtfOk "$short — copied from main: $shown"
+        }
     }
 
     # Update meta (preserve appPaths + deps) and rebuild the workspace.
@@ -1982,6 +2083,8 @@ function Invoke-WtfRemove {
         Write-WtfWarn "DRY RUN — would remove $featureDir and all worktrees."
         return
     }
+    Write-WtfDetail "Committed+pushed work is safe in git. Local-only files (copied .env, graphify-out,"
+    Write-WtfDetail "and anything gitignored you changed here) are NOT tracked and will be gone."
     if (-not (Read-WtfConfirm "Permanently remove feature '$Branch'?" $false)) {
         Write-WtfWarn "Cancelled."
         return
@@ -1989,6 +2092,9 @@ function Invoke-WtfRemove {
 
     # ── Teardown ──────────────────────────────────────────────────────
     Write-WtfHeader "Teardown"
+    Write-WtfDetail "If removal stalls, close this feature's VS Code window and agent/runner"
+    Write-WtfDetail "terminals first — open handles lock the files (Windows ‘Permission denied’)."
+    $stuck = @()
     foreach ($w in $worktrees) {
         $app    = $w.Name
         $wtDir  = $w.Dir
@@ -1998,19 +2104,28 @@ function Invoke-WtfRemove {
         if (Test-WtfIsGitRepo $appSrc) {
             $r = Invoke-WtfGit -WorkingDir $appSrc -GitArgs @('worktree','remove','--force', $wtDir)
             if (-not $r.Ok) {
-                Write-WtfWarn "  worktree remove failed; trying from inside the worktree"
-                if (Test-Path $wtDir) {
-                    Invoke-WtfGit -WorkingDir $wtDir -GitArgs @('worktree','remove','--force', '.') | Out-Null
+                # Usually a lock (VS Code / a terminal cwd'd into the worktree). git
+                # may have already unlinked it, so finish by deleting the folder, then
+                # prune the dangling registration.
+                if ($r.Stderr -match 'Permission denied|being used|access') {
+                    Write-WtfWarn "  files locked — close VS Code/terminals on this feature"
+                } else {
+                    Write-WtfWarn "  git worktree remove failed: $($r.Stderr)"
                 }
+                if (Test-Path $wtDir) { Remove-Item $wtDir -Recurse -Force -ErrorAction SilentlyContinue }
             }
             Invoke-WtfWorktreePrune -RepoDir $appSrc
         } else {
             Write-WtfWarn "  source repo missing; cleaning files only"
-            if (Test-Path $wtDir) {
-                Remove-Item $wtDir -Recurse -Force -ErrorAction SilentlyContinue
-            }
+            if (Test-Path $wtDir) { Remove-Item $wtDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
-        Write-WtfOk "  removed"
+
+        if (Test-Path $wtDir) {
+            $stuck += $app
+            Write-WtfFail "  still present (locked): $wtDir"
+        } else {
+            Write-WtfOk "  removed"
+        }
     }
 
     # Final cleanup: feature folder, sidecar meta, and workspace file.
@@ -2024,9 +2139,38 @@ function Invoke-WtfRemove {
     $wsPath = Get-WtfWorkspacePath $config $Context $Project $Branch
     if (Test-Path $wsPath) { Remove-Item $wsPath -Force }
 
+    if ($stuck.Count -gt 0) {
+        Write-WtfSummary -Title "Partially removed: $Branch" -Color $script:T.Warn -Lines @(
+            "$($script:T.Warn)Locked (still on disk):$($script:T.Reset) $($stuck -join ', ')",
+            "$($script:T.Detail)Close the feature's VS Code + terminal windows, then run ``wtf remove`` again$($script:T.Reset)",
+            "$($script:T.Detail)(or ``wtf doctor -Fix`` to clean leftovers).$($script:T.Reset)"
+        )
+        return
+    }
+
+    # ── Optionally delete the local branch from each source repo ──────
+    # The worktrees are gone but the branch refs remain. Offer to delete them.
+    $branchRepos = @()
+    foreach ($w in $worktrees) {
+        $src = Join-Path $layout.MainDir $w.RelPath
+        if (Test-WtfIsGitRepo $src) {
+            $has = Invoke-WtfGit -WorkingDir $src -GitArgs @('show-ref','--verify','--quiet',"refs/heads/$Branch")
+            if ($has.Ok) { $branchRepos += @{ Name = $w.Name; Src = $src } }
+        }
+    }
+    if ($branchRepos.Count -gt 0) {
+        if (Read-WtfConfirm "Also delete the local branch '$Branch' from $($branchRepos.Count) repo(s)?" $false) {
+            foreach ($b in $branchRepos) {
+                $d = Invoke-WtfGit -WorkingDir $b.Src -GitArgs @('branch','-D', $Branch)
+                if ($d.Ok) { Write-WtfOk "  deleted $Branch in $($b.Name)" }
+                else        { Write-WtfWarn "  couldn't delete in $($b.Name): $($d.Stderr)" }
+            }
+        }
+    }
+
     Write-WtfSummary -Title "Removed: $Branch" -Lines @(
         "$($script:T.Detail)All worktrees and the workspace file are gone.$($script:T.Reset)",
-        "$($script:T.Detail)Local branches still exist in source repos (delete manually if desired).$($script:T.Reset)"
+        "$($script:T.Detail)Remote branches (if pushed) are untouched — delete on the host if needed.$($script:T.Reset)"
     )
 }
 

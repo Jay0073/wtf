@@ -1,0 +1,17 @@
+[wtf config] started 2026-06-01T01:32:04.8005621+05:30
+[01:32:04] DETAIL: A root = a folder full of repos (personal, work). Repos inside it are found automatically.
+[01:32:04] DETAIL: A multi-repo group = repos you bundle under one name (e.g. pigeon).
+[01:32:59] INFO: Commands:
+[01:32:59] DETAIL:   wtf create  [ctx proj branch apps...] [--panes] [--dry-run]
+[01:32:59] DETAIL:   wtf open    [ctx proj branch] [--panes]
+[01:32:59] DETAIL:   wtf add     [ctx proj branch apps...] [--dry-run]
+[01:32:59] DETAIL:   wtf remove  [ctx proj branch] [--force] [--dry-run]
+[01:32:59] DETAIL:   wtf list
+[01:32:59] DETAIL:   wtf doctor  [-Fix]
+[01:32:59] DETAIL:   wtf config            (interactive menu)
+[01:32:59] DETAIL:   wtf config edit       (open config.json directly)
+[01:32:59] DETAIL: 
+[01:32:59] DETAIL: All args are optional — omit any and you'll be prompted.
+[01:32:59] DETAIL: Flags work in any position, e.g. `wtf create --panes` (agent repos as split
+[01:32:59] DETAIL: panes instead of tabs; remembered, so `wtf open` reuses it).
+[01:32:59] DETAIL: Single repos are auto-discovered; run `wtf config` to set up roots.

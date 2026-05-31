@@ -1,0 +1,54 @@
+[wtf doctor] started 2026-06-01T01:35:13.4022593+05:30
+[01:35:13] PHASE: Context: personal
+[01:35:13] GIT [C:\Users\jay\Documents\projects\ai-recruitment-platform\AI-Recruitment-Platform-Backend]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\ai-recruitment-platform\AI-Recruitment-Platform-FrontEnd]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\alerts-manager]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\browser-agent]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\browser-use]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\citysense]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\my-portfolio]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\omni_browser]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\pigeon-bot-service]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\pigeon-claw]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\Pigeon-Feed]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\projects-documenter\cloned_repo]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\resume]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\second-brain]: git worktree prune
+[01:35:13] GIT exit=0
+[01:35:13] GIT [C:\Users\jay\Documents\projects\skyvern]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] OK: pruned ghost worktree records
+[01:35:14] PHASE: Context: work
+[01:35:14] WARN: orphan folder (no meta): workelate-feat-last-test
+[01:35:14] WARN: orphan folder (no meta): workelate-feat-test
+[01:35:14] GIT [C:\Users\jay\Documents\workelate\main\citysense]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] GIT [C:\Users\jay\Documents\workelate\main\pptV2]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] GIT [C:\Users\jay\Documents\workelate\main\workelate-auth-app]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentation]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git worktree prune
+[01:35:14] GIT exit=0
+[01:35:14] OK: pruned ghost worktree records
+[01:35:14] DETAIL: Run `wtf doctor -Fix` to clean up the issues above.
