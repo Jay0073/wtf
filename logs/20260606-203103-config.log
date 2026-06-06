@@ -1,0 +1,15 @@
+[wtf config] started 2026-06-06T20:31:03.7271806+05:30
+[20:31:03] DETAIL: A root = a folder full of repos (personal, work). Repos inside it are found automatically.
+[20:31:03] DETAIL: A multi-repo group = repos you bundle under one name (e.g. pigeon).
+[20:31:17] PHASE: personal
+[20:31:17] DETAIL: main:      C:\Users\jay\Documents\projects
+[20:31:17] DETAIL: worktrees: C:\Users\jay\Documents\projects\worktrees
+[20:31:17] INFO: Multi-repo projects:
+[20:31:17] INFO: Single repos (auto): alerts-manager, brim-demo, browser-agent, browser-use, citysense, my-portfolio, omni_browser, resume, second-brain, skyvern, vortex-emulator
+[20:31:17] PHASE: work
+[20:31:17] DETAIL: main:      C:\Users\jay\Documents\workelate\main
+[20:31:17] DETAIL: worktrees: C:\Users\jay\Documents\workelate\worktrees
+[20:31:17] INFO: Multi-repo projects:
+[20:31:17] INFO: Single repos (auto): citysense, pptV2, workelate-hub-app, workelate-presentation
+[20:32:29] PHASE: Add a root folder
+[20:32:29] DETAIL: A root is a CATEGORY of work, not a single project. Repos inside it are auto-found.

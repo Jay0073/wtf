@@ -1,0 +1,59 @@
+[wtf create] started 2026-06-06T20:55:42.4727146+05:30
+[20:55:42] PHASE: Inputs
+[20:55:50] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git branch --format=%(refname:short)
+[20:55:50] GIT exit=0
+[20:55:50] GIT stdout: main
+[20:55:50] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git branch -r --format=%(refname:short)
+[20:55:50] GIT exit=0
+[20:55:50] GIT stdout: origin/main
+[20:56:20] PHASE: Plan
+[20:56:20] INFO: Context:    personal
+[20:56:20] INFO: Project:    sri-vani-school  (mono)
+[20:56:20] INFO: Branch:     plan/cost-sprint-planning
+[20:56:20] INFO: Worktree:   sri-vani-school
+[20:56:20] INFO: Path:       C:\Users\jay\Documents\projects\worktrees\sri-vani-school-plan-cost-sprint-planning
+[20:56:20] INFO: Agents:     1 planner + 1 executor
+[20:56:22] PHASE: Worktrees
+[20:56:22] STEP: [1/1] sri-vani-school
+[20:56:22] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git worktree prune
+[20:56:22] GIT exit=0
+[20:56:22] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git show-ref --verify --quiet refs/heads/plan/cost-sprint-planning
+[20:56:22] GIT exit=1
+[20:56:22] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git show-ref --verify --quiet refs/remotes/origin/plan/cost-sprint-planning
+[20:56:22] GIT exit=1
+[20:56:22] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git symbolic-ref refs/remotes/origin/HEAD
+[20:56:22] GIT exit=128
+[20:56:22] GIT stderr: fatal: ref refs/remotes/origin/HEAD is not a symbolic ref
+[20:56:22] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git remote set-head origin --auto
+[20:56:23] GIT exit=0
+[20:56:23] GIT stdout: 'origin/HEAD' is now created and points to 'main'
+[20:56:23] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git symbolic-ref refs/remotes/origin/HEAD
+[20:56:23] GIT exit=0
+[20:56:23] GIT stdout: refs/remotes/origin/main
+[20:56:23] DETAIL: branch source: new (origin/main)
+[20:56:23] DETAIL: fetching origin...
+[20:56:23] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git fetch --prune origin
+[20:56:24] GIT exit=0
+[20:56:24] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git worktree add -b plan/cost-sprint-planning C:\Users\jay\Documents\projects\worktrees\sri-vani-school-plan-cost-sprint-planning origin/main
+[20:56:24] GIT exit=0
+[20:56:24] GIT stdout: branch 'plan/cost-sprint-planning' set up to track 'origin/main'.
+HEAD is now at bd7e0b7 plan: initial PDF document
+[20:56:24] GIT stderr: Preparing worktree (new branch 'plan/cost-sprint-planning')
+[20:56:24] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git ls-files --others --ignored --exclude-standard --directory
+[20:56:24] GIT exit=0
+[20:56:24] PHASE: Artifacts
+[20:56:24] OK: executor folders: exec-1
+[20:56:24] OK: _PLAN.md scaffolded in .plan/
+[20:56:24] GIT [C:\Users\jay\Documents\projects\worktrees\sri-vani-school-plan-cost-sprint-planning]: git rev-parse --git-path info/exclude
+[20:56:24] GIT exit=0
+[20:56:24] GIT stdout: C:/Users/jay/Documents/projects/sri-vani-school/.git/info/exclude
+[20:56:24] EXCLUDE: added /.plan/ to C:/Users/jay/Documents/projects/sri-vani-school/.git/info/exclude
+[20:56:24] OK: git-ignored .plan/ locally (won't be committed)
+[20:56:24] OK: .wtf-meta.json saved
+[20:56:24] PHASE: Opening plan/cost-sprint-planning
+[20:56:24] STEP: VS Code (repo folder)
+[20:56:24] OK: code launched → sri-vani-school-plan-cost-sprint-planning
+[20:56:24] DETAIL: No agent sessions saved yet — start your sessions, then run `wtf edit` to save them so the next `wtf open` resumes as-is.
+[20:56:24] STEP: runner window
+[20:56:24] WT: wt -w wtf-runners-sri-vani-school-plan-cost-sprint-planning new-tab -d C:\Users\jay\Documents\projects\worktrees\sri-vani-school-plan-cost-sprint-planning --title "🚀 sri-vani-school [F]" --tabColor #10B981
+[20:56:24] OK: runners → wtf-runners-sri-vani-school-plan-cost-sprint-planning

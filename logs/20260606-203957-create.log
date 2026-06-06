@@ -1,0 +1,53 @@
+[wtf create] started 2026-06-06T20:39:57.4802385+05:30
+[20:39:57] PHASE: Inputs
+[20:40:01] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git branch --format=%(refname:short)
+[20:40:01] GIT exit=0
+[20:40:01] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git branch -r --format=%(refname:short)
+[20:40:01] GIT exit=0
+[20:40:37] PHASE: Plan
+[20:40:37] INFO: Context:    personal
+[20:40:37] INFO: Project:    sri-vani-school  (mono)
+[20:40:37] INFO: Branch:     plan/cost-sprint-planning
+[20:40:37] INFO: Worktree:   sri-vani-school
+[20:40:37] INFO: Path:       C:\Users\jay\Documents\projects\worktrees\sri-vani-school-plan-cost-sprint-planning
+[20:40:37] INFO: Agents:     1 planner + 1 executor
+[20:40:40] PHASE: Worktrees
+[20:40:40] STEP: [1/1] sri-vani-school
+[20:40:40] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git worktree prune
+[20:40:40] GIT exit=0
+[20:40:40] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git show-ref --verify --quiet refs/heads/plan/cost-sprint-planning
+[20:40:40] GIT exit=1
+[20:40:40] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git show-ref --verify --quiet refs/remotes/origin/plan/cost-sprint-planning
+[20:40:40] GIT exit=1
+[20:40:40] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git symbolic-ref refs/remotes/origin/HEAD
+[20:40:40] GIT exit=128
+[20:40:40] GIT stderr: fatal: ref refs/remotes/origin/HEAD is not a symbolic ref
+[20:40:40] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git remote set-head origin --auto
+[20:40:40] GIT exit=128
+[20:40:40] GIT stderr: fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+[20:40:40] DETAIL: branch source: new (origin/main)
+[20:40:40] DETAIL: fetching origin...
+[20:40:40] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git fetch --prune origin
+[20:40:40] GIT exit=128
+[20:40:40] GIT stderr: fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+[20:40:40] WARN: fetch failed (continuing): fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+[20:40:40] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git worktree add -b plan/cost-sprint-planning C:\Users\jay\Documents\projects\worktrees\sri-vani-school-plan-cost-sprint-planning origin/main
+[20:40:40] GIT exit=128
+[20:40:40] GIT stderr: fatal: invalid reference: origin/main
+[20:40:40] FAIL: git worktree add failed
+[20:40:40] DETAIL: fatal: invalid reference: origin/main
+[20:40:40] FAIL: Worktree creation failed for sri-vani-school
+[20:40:40] PHASE: Rollback
+[20:40:40] OK: rolled back cleanly

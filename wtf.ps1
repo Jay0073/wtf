@@ -1122,14 +1122,15 @@ function Get-WtfRoleInfo {
 
 function _wtf_normalize_slots {
     # Shared parser for both active + archived slot arrays from a meta property.
+    # Slots may have EMPTY commands (e.g., fresh placeholders from `wtf create` —
+    # you paste session IDs into the blank terminals). Non-empty commands are real
+    # resumed sessions. Both are valid and shown in the launcher.
     param($Raw)
     $out = @()
     foreach ($s in @($Raw)) {
         if (-not $s) { continue }
+        if (-not (Test-ObjectHasKey $s 'role') -or -not (Test-ObjectHasKey $s 'name')) { continue }
         $cmd = if (Test-ObjectHasKey $s 'command') { [string](Get-ObjectValue $s 'command') } else { '' }
-        # Invariant: only real sessions are stored. Skip any empty stragglers
-        # (e.g. from an older meta) so they never spawn or show up.
-        if ([string]::IsNullOrWhiteSpace($cmd)) { continue }
         $rec = @{
             role    = [string](Get-ObjectValue $s 'role')
             name    = [string](Get-ObjectValue $s 'name')
@@ -1563,9 +1564,9 @@ function _wtf_wt_quote {
 function Invoke-WtfWt {
     <#
     .SYNOPSIS
-        Launch Windows Terminal with a hand-quoted command line. Passing a token
-        ARRAY to Start-Process leaves titles-with-spaces unquoted, so wt parses
-        e.g. "citysense" as a command — hence we build the string ourselves.
+        Launch Windows Terminal. The Argv is already an array of tokens. We
+        quote titles-with-spaces but pass the result as an array to -ArgumentList,
+        not as a pre-joined string (which would lose token boundaries).
     #>
     param([Parameter(Mandatory)][string[]]$Argv)
     if (-not (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
@@ -1573,9 +1574,9 @@ function Invoke-WtfWt {
         Write-WtfDetail "Install it from the Microsoft Store to get agent/runner tabs."
         return
     }
-    $cmd = (@($Argv) | ForEach-Object { _wtf_wt_quote $_ }) -join ' '
-    Write-WtfLog "WT: wt $cmd"
-    Start-Process -FilePath 'wt.exe' -ArgumentList $cmd
+    $quoted = @($Argv) | ForEach-Object { _wtf_wt_quote $_ }
+    Write-WtfLog "WT: wt $($quoted -join ' ')"
+    Start-Process -FilePath 'wt.exe' -ArgumentList $quoted
 }
 
 function _wtf_slot_launch_cmd {
@@ -2126,13 +2127,21 @@ function Invoke-WtfCreate {
     foreach ($short in $wtNames) { $appPaths[$short] = $worktreeMap[$short] }
     $metaDeps = foreach ($d in $depList) { @{ name = $d.Name; path = $d.RelPath } }
     $metaApps = if ($isMono) { @() } else { @($wtNames) }
-    # Fresh feature → NO agent slots yet (born in `wtf edit`). We do remember the
-    # chosen executor count so `wtf edit`'s first-time walk-through can suggest
-    # exactly that many executors.
+    # Create empty slots (planner + N executors with no commands) so blank
+    # terminals open on first `wtf open`. You paste session IDs into them,
+    # then `wtf edit` saves them. We remember the chosen executor count for
+    # `wtf edit`'s walk-through suggestions.
+    $initialSlots = @(
+        New-WtfSlot -Role 'planner' -Name 'plan' -Command ''
+    )
+    for ($n = 1; $n -le $execCount; $n++) {
+        $initialSlots += New-WtfSlot -Role 'root-exec' -Name "exec-$n" -Command ''
+    }
     $meta = New-WtfMeta -Context $Context -Project $projectName -Branch $Branch `
                         -Type $(if ($isMono) { 'mono' } else { 'multi' }) `
                         -Apps $metaApps -AppPaths $appPaths -Deps @($metaDeps) -Panes $Panes.IsPresent
     $meta.execCount = $execCount
+    Set-WtfMetaSlots -Meta $meta -Active $initialSlots -Archived @() | Out-Null
     Save-WtfMeta -FeatureDir $featureDir -Meta $meta
     Write-WtfOk ".wtf-meta.json saved"
 
