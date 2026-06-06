@@ -1,0 +1,11 @@
+[wtf create] started 2026-06-01T12:16:32.9732372+05:30
+[12:16:32] PHASE: Inputs
+[12:16:40] GIT [C:\Users\jay\Documents\projects\my-portfolio]: git branch --format=%(refname:short)
+[12:16:40] GIT exit=0
+[12:16:40] GIT stdout: main
+[12:16:40] GIT [C:\Users\jay\Documents\projects\my-portfolio]: git branch -r --format=%(refname:short)
+[12:16:40] GIT exit=0
+[12:16:40] GIT stdout: origin/Deploy-changes
+origin
+origin/gh-pages
+origin/main

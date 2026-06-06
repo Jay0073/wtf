@@ -1,0 +1,82 @@
+[wtf status] started 2026-06-06T17:27:36.6635364+05:30
+[17:27:36] PHASE: work / workelate — feat/agentic-workflow-upgrade
+[17:27:36] INFO: Worktrees:
+[17:27:36] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend]: git status --porcelain
+[17:27:36] GIT exit=0
+[17:27:36] GIT stdout: M .gitignore
+ M package.json
+ M routes/presentation/presentationRoutes.js
+ M scripts/smoke-phase-8-deck.js
+ M services/presentation/agentic/adapter.js
+ D services/presentation/agentic/agents/artDirector.js
+ M services/presentation/agentic/agents/deckArchitect.js
+ M services/presentation/agentic/agents/image.js
+ D services/presentation/agentic/agents/imageJudge.js
+ M services/presentation/agentic/agents/llm.js
+ D services/presentation/agentic/agents/referenceMatcher.js
+ M services/presentation/agentic/agents/slideDesigner.js
+ M services/presentation/agentic/agents/visualCritic.js
+ M services/presentation/agentic/contracts/deckArchitect.zod.js
+ M services/presentation/agentic/data/reference-slides.js
+ M services/presentation/agentic/llm/anthropic.js
+ M services/presentation/agentic/llm/index.js
+ M services/presentation/agentic/llm/openai.js
+ M services/presentation/agentic/orchestrator.js
+ M services/presentation/agentic/services/contractValidator.js
+ M services/presentation/agentic/services/costLedger.js
+ M services/presentation/agentic/services/emergencyTemplate.js
+?? brain_run.json
+?? controllers/presentation/presentationEditorController.js
+?? docs/
+?? models/presentation/SlideEditVersion.js
+?? routes/presentation/presentationEditorRoutes.js
+?? scripts/list-openai-models.js
+?? services/evals/baselines/skip-suite.json
+?? services/presentation/agentic/agents/dataVizAgent.js
+?? services/presentation/agentic/agents/deckEditor.js
+?? services/presentation/agentic/agents/editRouter.js
+?? services/presentation/agentic/agents/slideEditor.js
+?? services/presentation/agentic/data/decorations.js
+?? services/presentation/agentic/llm/costTracker.js
+?? services/presentation/agentic/services/htmlAudit.js
+?? services/presentation/editVersion.js
+?? services/presentation/pptv2/
+?? tests/unit/phase-14/
+?? tmp/
+[17:27:36] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend]: git rev-list --count @{u}..HEAD
+[17:27:36] GIT exit=0
+[17:27:36] GIT stdout: 0
+[17:27:36] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend]: git rev-list --count HEAD..@{u}
+[17:27:36] GIT exit=0
+[17:27:36] GIT stdout: 0
+[17:27:36] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations]: git status --porcelain
+[17:27:36] GIT exit=0
+[17:27:36] GIT stdout: M package.json
+ M src/components/editor/EditorToolbar.jsx
+ M src/components/editor/SlideCanvas.jsx
+ M src/components/editor/SlidePanelSidebar.jsx
+ M src/components/slides/ImageInsert.jsx
+ M src/components/slides/PresentationMode.jsx
+ M src/components/slides/SlideContextMenu.jsx
+ M src/components/slides/SlideRenderer.jsx
+ M src/components/slides/specs/AIFreeFormHtml.jsx
+ M src/lib/deckStyle.js
+ M src/pages/Editor.jsx
+?? src/components/editor/MassReplaceDialog.jsx
+?? src/components/editor/SlideEditChat.jsx
+?? src/components/editor/TextFormatToolbar.jsx
+?? src/components/editor/ThemeBrandPopover.jsx
+?? src/components/slides/specs/ElementContextMenu.jsx
+?? src/components/slides/specs/ImageReplaceHandler.jsx
+?? src/components/slides/specs/ManualEditOverlay.jsx
+?? src/lib/contentEditableFormatter.js
+?? src/lib/motion-countup.js
+?? src/styles/motion.css
+[17:27:36] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations]: git rev-list --count @{u}..HEAD
+[17:27:36] GIT exit=0
+[17:27:36] GIT stdout: 0
+[17:27:36] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations]: git rev-list --count HEAD..@{u}
+[17:27:36] GIT exit=0
+[17:27:36] GIT stdout: 0
+[17:27:36] INFO: Agent sessions:
+[17:27:36] INFO: Plan progress:

@@ -1,0 +1,16 @@
+[wtf open] started 2026-06-06T15:32:49.2915476+05:30
+[15:32:49] PHASE: Opening feat
+[15:32:49] STEP: VS Code (repo folder)
+[15:32:49] OK: code launched → proj-feat
+[15:32:49] STEP: agent window
+[15:32:49] OK: agents → wtf-agents-proj-feat
+[15:32:49] STEP: runner window
+[15:32:49] OK: runners → wtf-runners-proj-feat
+[15:32:49] PHASE: Opening feat
+[15:32:49] STEP: VS Code workspace
+[15:32:49] OK: code launched
+[15:32:49] STEP: agent window
+[15:32:49] DETAIL: executors share one tab as side-by-side panes; other roles get their own tab
+[15:32:49] OK: agents → wtf-agents-proj-feat
+[15:32:49] STEP: runner window
+[15:32:49] OK: runners → wtf-runners-proj-feat

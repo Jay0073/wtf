@@ -1,0 +1,3 @@
+[wtf config] started 2026-06-01T12:15:22.5952382+05:30
+[12:15:22] DETAIL: A root = a folder full of repos (personal, work). Repos inside it are found automatically.
+[12:15:22] DETAIL: A multi-repo group = repos you bundle under one name (e.g. pigeon).

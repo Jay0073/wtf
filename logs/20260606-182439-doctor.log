@@ -1,0 +1,66 @@
+[wtf doctor] started 2026-06-06T18:24:39.6797268+05:30
+[18:24:39] PHASE: Context: personal
+[18:24:39] GIT [C:\Users\jay\Documents\projects\ai-recruitment-platform\AI-Recruitment-Platform-Backend]: git worktree prune
+[18:24:39] GIT exit=0
+[18:24:39] GIT [C:\Users\jay\Documents\projects\ai-recruitment-platform\AI-Recruitment-Platform-FrontEnd]: git worktree prune
+[18:24:39] GIT exit=0
+[18:24:39] GIT [C:\Users\jay\Documents\projects\alerts-manager]: git worktree prune
+[18:24:39] GIT exit=0
+[18:24:39] GIT [C:\Users\jay\Documents\projects\Brim-Burger-Blast\Brim-Burger-Blast]: git worktree prune
+[18:24:39] GIT exit=0
+[18:24:39] GIT [C:\Users\jay\Documents\projects\brim-demo]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\browser-agent]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\browser-use]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\citysense]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\my-portfolio]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\omni_browser]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\pigeon-bot-service]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\pigeon-claw]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\Pigeon-Feed]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\projects-documenter\cloned_repo]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\resume]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\second-brain]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\skyvern]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] OK: pruned ghost worktree records
+[18:24:40] PHASE: Context: work
+[18:24:40] GIT [C:\Users\jay\Documents\workelate\main\citysense]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\workelate\main\pptV2]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\workelate\main\workelate-auth-app]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentation]: git worktree prune
+[18:24:40] GIT exit=0
+[18:24:40] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree prune
+[18:24:41] GIT exit=0
+[18:24:41] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git worktree prune
+[18:24:41] GIT exit=0
+[18:24:41] OK: pruned ghost worktree records
+[18:24:46] PHASE: Opening feat/agentic-workflow-upgrade
+[18:24:46] STEP: VS Code workspace
+[18:24:46] OK: code launched
+[18:24:46] STEP: agent window
+[18:24:46] WT: wt -w wtf-agents-workelate-feat-agentic-workflow-upgrade new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade --title "🧠 plan" --tabColor #F59E0B pwsh -NoExit -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcAQwA6AFwAVQBzAGUAcgBzAFwAagBhAHkAXABEAG8AYwB1AG0AZQBuAHQAcwBcAHcAbwByAGsAZQBsAGEAdABlAFwAdwBvAHIAawB0AHIAZQBlAHMAXAB3AG8AcgBrAGUAbABhAHQAZQAtAGYAZQBhAHQALQBhAGcAZQBuAHQAaQBjAC0AdwBvAHIAawBmAGwAbwB3AC0AdQBwAGcAcgBhAGQAZQAnAAoAYwBsAGEAdQBkAGUAIAAtAC0AcgBlAHMAdQBtAGUAIAAiAGEAaQAtAGQAZQBjAGsALQBnAGUAbgBlAHIAYQB0AG8AcgAtAGQAZQBzAGkAZwBuAC0AcwB5AHMAdABlAG0AIgA= ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade --title "🤖 executor-1" --tabColor #3B82F6 pwsh -NoExit -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcAQwA6AFwAVQBzAGUAcgBzAFwAagBhAHkAXABEAG8AYwB1AG0AZQBuAHQAcwBcAHcAbwByAGsAZQBsAGEAdABlAFwAdwBvAHIAawB0AHIAZQBlAHMAXAB3AG8AcgBrAGUAbABhAHQAZQAtAGYAZQBhAHQALQBhAGcAZQBuAHQAaQBjAC0AdwBvAHIAawBmAGwAbwB3AC0AdQBwAGcAcgBhAGQAZQAnAAoAYwBsAGEAdQBkAGUAIAAtAC0AcgBlAHMAdQBtAGUAIAAiAGwAbABtAC0AcwBkAGsALQBkAGUAZgBlAHIALQByAGUAYQBzAG8AbgBpAG4AZwAiAA== ; split-pane -V -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade --title "🤖 executor-2" --tabColor #3B82F6 pwsh -NoExit -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcAQwA6AFwAVQBzAGUAcgBzAFwAagBhAHkAXABEAG8AYwB1AG0AZQBuAHQAcwBcAHcAbwByAGsAZQBsAGEAdABlAFwAdwBvAHIAawB0AHIAZQBlAHMAXAB3AG8AcgBrAGUAbABhAHQAZQAtAGYAZQBhAHQALQBhAGcAZQBuAHQAaQBjAC0AdwBvAHIAawBmAGwAbwB3AC0AdQBwAGcAcgBhAGQAZQAnAAoAYwBsAGEAdQBkAGUAIAAtAC0AcgBlAHMAdQBtAGUAIAAiAGUAZABpAHQAbwByAC0AdABvAG8AbABiAGEAcgAtAHIAZQBkAGUAcwBpAGcAbgAiAA== ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade --title "🦾 free-executor" --tabColor #A855F7 pwsh -NoExit -EncodedCommand UwBlAHQALQBMAG8AYwBhAHQAaQBvAG4AIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACcAQwA6AFwAVQBzAGUAcgBzAFwAagBhAHkAXABEAG8AYwB1AG0AZQBuAHQAcwBcAHcAbwByAGsAZQBsAGEAdABlAFwAdwBvAHIAawB0AHIAZQBlAHMAXAB3AG8AcgBrAGUAbABhAHQAZQAtAGYAZQBhAHQALQBhAGcAZQBuAHQAaQBjAC0AdwBvAHIAawBmAGwAbwB3AC0AdQBwAGcAcgBhAGQAZQAnAAoAYwBsAGEAdQBkAGUAIAAtAC0AcgBlAHMAdQBtAGUAIABhADgANwA3AGEAYwAwAGEALQA1ADEAMQAzAC0ANAAyAGIANwAtADgAYQA2AGUALQBkADYAZQBhAGYANAA3AGUAMwA5ADUAOQA=
+[18:24:46] OK: agents → wtf-agents-workelate-feat-agentic-workflow-upgrade
+[18:24:46] STEP: runner window
+[18:24:46] WT: wt -w wtf-runners-workelate-feat-agentic-workflow-upgrade new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend --title "🚀 backend [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations --title "🚀 presentations [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\main\workelate-auth-app --title "📦 workelate-auth-app [M]" --tabColor #6B7280 ; new-tab -d C:\Users\jay\Documents\workelate\main\workelate-sdk --title "📦 workelate-sdk [M]" --tabColor #6B7280
+[18:24:46] OK: runners → wtf-runners-workelate-feat-agentic-workflow-upgrade

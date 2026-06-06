@@ -1,0 +1,21 @@
+[wtf remove] started 2026-06-06T16:08:51.6923207+05:30
+[16:08:55] PHASE: Safety checks
+[16:08:55] STEP: brim-demo
+[16:08:55] GIT [C:\Users\jay\Documents\projects\worktrees\brim-demo-small-changes]: git status --porcelain
+[16:08:56] GIT exit=0
+[16:08:56] GIT [C:\Users\jay\Documents\projects\worktrees\brim-demo-small-changes]: git log --oneline @{u}..HEAD
+[16:08:56] GIT exit=0
+[16:08:56] OK:   clean & pushed
+[16:08:56] DETAIL: Committed+pushed work is safe in git. Local-only files (copied .env, graphify-out,
+[16:08:56] DETAIL: and anything gitignored you changed here) are NOT tracked and will be gone.
+[16:09:01] PHASE: Teardown
+[16:09:01] DETAIL: If removal stalls, close this feature's VS Code window and agent/runner
+[16:09:01] DETAIL: terminals first — open handles lock the files (Windows ‘Permission denied’).
+[16:09:01] STEP: brim-demo
+[16:09:01] GIT [C:\Users\jay\Documents\projects\brim-demo]: git worktree remove --force C:\Users\jay\Documents\projects\worktrees\brim-demo-small-changes
+[16:09:01] GIT exit=255
+[16:09:01] GIT stderr: error: failed to delete 'C:/Users/jay/Documents/projects/worktrees/brim-demo-small-changes': Permission denied
+[16:09:01] WARN:   files locked — close VS Code/terminals on this feature
+[16:09:01] GIT [C:\Users\jay\Documents\projects\brim-demo]: git worktree prune
+[16:09:01] GIT exit=0
+[16:09:01] FAIL:   still present (locked): C:\Users\jay\Documents\projects\worktrees\brim-demo-small-changes

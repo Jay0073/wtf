@@ -1,0 +1,14 @@
+[wtf edit] started 2026-06-06T17:32:50.2535235+05:30
+[17:32:50] PHASE: work / workelate — feat/agentic-workflow-upgrade
+[17:32:50] DETAIL: Current terminals:
+[17:32:50] DETAIL: executors share one tab as side-by-side panes (left→right); other roles get their own tab
+[17:32:50] PHASE: 🧠 plan  (1 of 5)
+[17:32:52] PHASE: 🤖 executor-1  (2 of 5)
+[17:32:52] PHASE: 🤖 executor-2  (3 of 5)
+[17:32:53] PHASE: 🦾 free-executor  (4 of 5)
+[17:32:54] PHASE: 🦾 test  (5 of 5)
+[17:32:56] WARN: archived — find it under `wtf sessions`
+[17:32:59] PHASE: Saved
+[17:32:59] DETAIL: `wtf open` (this feature) will launch:
+[17:32:59] DETAIL: executors share one tab as side-by-side panes (left→right); other roles get their own tab
+[17:32:59] DETAIL: Archived: 🦾 test  ·  reopen via `wtf sessions`

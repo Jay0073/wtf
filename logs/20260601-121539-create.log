@@ -1,0 +1,53 @@
+[wtf create] started 2026-06-01T12:15:39.2041736+05:30
+[12:15:39] PHASE: Inputs
+[12:16:07] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git branch --format=%(refname:short)
+[12:16:07] GIT exit=0
+[12:16:07] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git branch -r --format=%(refname:short)
+[12:16:07] GIT exit=0
+[12:16:15] PHASE: Plan
+[12:16:15] INFO: Context:    personal
+[12:16:15] INFO: Project:    vortex-emulator  (mono)
+[12:16:15] INFO: Branch:     doc/documenting
+[12:16:15] INFO: Worktree:   vortex-emulator
+[12:16:15] INFO: Path:       C:\Users\jay\Documents\projects\worktrees\vortex-emulator-doc-documenting
+[12:16:15] INFO: Agent UI:   tabs
+[12:16:19] PHASE: Worktrees
+[12:16:19] STEP: [1/1] vortex-emulator
+[12:16:19] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git worktree prune
+[12:16:19] GIT exit=0
+[12:16:19] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git show-ref --verify --quiet refs/heads/doc/documenting
+[12:16:19] GIT exit=1
+[12:16:19] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git show-ref --verify --quiet refs/remotes/origin/doc/documenting
+[12:16:19] GIT exit=1
+[12:16:19] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git symbolic-ref refs/remotes/origin/HEAD
+[12:16:19] GIT exit=128
+[12:16:19] GIT stderr: fatal: ref refs/remotes/origin/HEAD is not a symbolic ref
+[12:16:19] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git remote set-head origin --auto
+[12:16:19] GIT exit=128
+[12:16:19] GIT stderr: fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+[12:16:19] DETAIL: branch source: new (origin/main)
+[12:16:19] DETAIL: fetching origin...
+[12:16:19] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git fetch --prune origin
+[12:16:19] GIT exit=128
+[12:16:19] GIT stderr: fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+[12:16:19] WARN: fetch failed (continuing): fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+[12:16:19] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git worktree add -b doc/documenting C:\Users\jay\Documents\projects\worktrees\vortex-emulator-doc-documenting origin/main
+[12:16:19] GIT exit=128
+[12:16:19] GIT stderr: fatal: invalid reference: origin/main
+[12:16:19] FAIL: git worktree add failed
+[12:16:19] DETAIL: fatal: invalid reference: origin/main
+[12:16:19] FAIL: Worktree creation failed for vortex-emulator
+[12:16:19] PHASE: Rollback
+[12:16:19] OK: rolled back cleanly
