@@ -1,0 +1,10 @@
+[wtf open] started 2026-06-13T12:31:46.9507430+05:30
+[12:31:55] PHASE: Opening feat/wire-cc-to-ppt
+[12:31:55] STEP: VS Code workspace
+[12:31:55] OK: code launched
+[12:31:55] STEP: agent window
+[12:31:55] WT: wt -w wtf-agents-workelate-feat-wire-cc-to-ppt new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt --title "🧠 plan" --tabColor #F59E0B ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt --title "🤖 exec-1" --tabColor #3B82F6
+[12:31:55] OK: agents → wtf-agents-workelate-feat-wire-cc-to-ppt
+[12:31:55] STEP: runner window
+[12:31:55] WT: wt -w wtf-runners-workelate-feat-wire-cc-to-ppt new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\backend --title "🚀 backend [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\hub --title "🚀 hub [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\presentations --title "🚀 presentations [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\sdk --title "🚀 sdk [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\workelate-admin --title "🚀 workelate-admin [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\main\workelate-auth-app --title "📦 workelate-auth-app [M]" --tabColor #6B7280
+[12:31:55] OK: runners → wtf-runners-workelate-feat-wire-cc-to-ppt

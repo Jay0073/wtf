@@ -1,0 +1,26 @@
+[wtf add] started 2026-06-11T14:30:01.9854887+05:30
+[14:30:11] PHASE: Plan
+[14:30:11] INFO: Feature:  workelate · feat/wire-cc-to-ppt
+[14:30:11] INFO: Adding:   workelate-admin
+[14:30:19] PHASE: Worktrees
+[14:30:19] STEP: [1/1] workelate-admin
+[14:30:19] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git worktree prune
+[14:30:20] GIT exit=0
+[14:30:20] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git show-ref --verify --quiet refs/heads/feat/wire-cc-to-ppt
+[14:30:20] GIT exit=1
+[14:30:20] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git show-ref --verify --quiet refs/remotes/origin/feat/wire-cc-to-ppt
+[14:30:20] GIT exit=1
+[14:30:20] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git symbolic-ref refs/remotes/origin/HEAD
+[14:30:20] GIT exit=0
+[14:30:20] GIT stdout: refs/remotes/origin/main
+[14:30:20] DETAIL: fetching origin...
+[14:30:20] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git fetch --prune origin
+[14:30:21] GIT exit=0
+[14:30:21] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git worktree add -b feat/wire-cc-to-ppt C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\workelate-admin origin/main
+[14:30:22] GIT exit=0
+[14:30:22] GIT stdout: branch 'feat/wire-cc-to-ppt' set up to track 'origin/main'.
+HEAD is now at cbd5e27 Merge pull request #43 from workelate/bug/board-editor
+[14:30:22] GIT stderr: Preparing worktree (new branch 'feat/wire-cc-to-ppt')
+[14:30:22] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git ls-files --others --ignored --exclude-standard --directory
+[14:30:22] GIT exit=0
+[14:30:22] OK: workspace updated (VS Code will hot-reload)

@@ -1,0 +1,22 @@
+[wtf add] started 2026-06-11T17:05:12.6849934+05:30
+[17:05:35] PHASE: Plan
+[17:05:35] INFO: Feature:  workelate · feat/ai-consumption
+[17:05:35] INFO: Adding:   workelate-admin
+[17:05:41] PHASE: Worktrees
+[17:05:41] STEP: [1/1] workelate-admin
+[17:05:41] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git worktree prune
+[17:05:41] GIT exit=0
+[17:05:41] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git show-ref --verify --quiet refs/heads/feat/ai-consumption
+[17:05:41] GIT exit=0
+[17:05:41] DETAIL: fetching origin...
+[17:05:41] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git fetch --prune origin
+[17:05:43] GIT exit=0
+[17:05:43] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git worktree add C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption\workelate-admin feat/ai-consumption
+[17:05:43] GIT exit=128
+[17:05:43] GIT stderr: Preparing worktree (checking out 'feat/ai-consumption')
+fatal: 'C:/Users/jay/Documents/workelate/worktrees/workelate-feat-ai-consumption/workelate-admin' already exists
+[17:05:43] FAIL: git worktree add failed
+[17:05:43] DETAIL: Preparing worktree (checking out 'feat/ai-consumption')
+fatal: 'C:/Users/jay/Documents/workelate/worktrees/workelate-feat-ai-consumption/workelate-admin' already exists
+[17:05:43] PHASE: Rollback
+[17:05:43] OK: rolled back

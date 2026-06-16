@@ -1,0 +1,15 @@
+[wtf config] started 2026-06-11T14:28:20.5325653+05:30
+[14:28:20] DETAIL: A root = a folder full of repos (personal, work). Repos inside it are found automatically.
+[14:28:20] DETAIL: A multi-repo group = repos you bundle under one name (e.g. pigeon).
+[14:29:00] CONFIG saved to C:\Users\jay\.wtf\config.json
+[14:29:00] OK: updated → 'workelate'
+[14:29:08] PHASE: personal
+[14:29:08] DETAIL: main:      C:\Users\jay\Documents\projects
+[14:29:08] DETAIL: worktrees: C:\Users\jay\Documents\projects\worktrees
+[14:29:08] INFO: Multi-repo projects:
+[14:29:08] INFO: Single repos (auto): alerts-manager, brim-demo, browser-agent, browser-use, citysense, my-portfolio, omni_browser, resume, second-brain, skyvern, sri-vani-school, vortex-emulator
+[14:29:08] PHASE: work
+[14:29:08] DETAIL: main:      C:\Users\jay\Documents\workelate\main
+[14:29:08] DETAIL: worktrees: C:\Users\jay\Documents\workelate\worktrees
+[14:29:08] INFO: Multi-repo projects:
+[14:29:08] INFO: Single repos (auto): citysense, pptV2, workelate-presentation

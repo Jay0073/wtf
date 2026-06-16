@@ -1,0 +1,10 @@
+[wtf open] started 2026-06-11T11:19:20.2329427+05:30
+[11:19:24] PHASE: Opening feat/ai-consumption
+[11:19:24] STEP: VS Code workspace
+[11:19:24] OK: code launched
+[11:19:24] STEP: agent window
+[11:19:25] WT: wt -w wtf-agents-workelate-feat-ai-consumption new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption --title "🧠 plan" --tabColor #F59E0B ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption --title "🤖 exec-1" --tabColor #3B82F6 ; split-pane -V -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption --title "🤖 exec-2" --tabColor #3B82F6
+[11:19:25] OK: agents → wtf-agents-workelate-feat-ai-consumption
+[11:19:25] STEP: runner window
+[11:19:25] WT: wt -w wtf-runners-workelate-feat-ai-consumption new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption\backend --title "🚀 backend [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption\hub --title "🚀 hub [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption\presentations --title "🚀 presentations [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption\sdk --title "🚀 sdk [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\main\workelate-auth-app --title "📦 workelate-auth-app [M]" --tabColor #6B7280
+[11:19:25] OK: runners → wtf-runners-workelate-feat-ai-consumption

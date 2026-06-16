@@ -1,0 +1,43 @@
+[wtf remove] started 2026-06-11T12:53:14.4552026+05:30
+[12:53:19] PHASE: Safety checks
+[12:53:19] STEP: backend
+[12:53:19] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend]: git status --porcelain
+[12:53:20] GIT exit=0
+[12:53:20] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend]: git log --oneline @{u}..HEAD
+[12:53:20] GIT exit=0
+[12:53:20] OK:   clean & pushed
+[12:53:20] STEP: presentations
+[12:53:20] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations]: git status --porcelain
+[12:53:20] GIT exit=0
+[12:53:20] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations]: git log --oneline @{u}..HEAD
+[12:53:20] GIT exit=0
+[12:53:20] OK:   clean & pushed
+[12:53:20] DETAIL: Committed+pushed work is safe in git. Local-only files (copied .env, graphify-out,
+[12:53:20] DETAIL: and anything gitignored you changed here) are NOT tracked and will be gone.
+[12:53:35] PHASE: Teardown
+[12:53:35] DETAIL: If removal stalls, close this feature's VS Code window and agent/runner
+[12:53:35] DETAIL: terminals first — open handles lock the files (Windows ‘Permission denied’).
+[12:53:35] STEP: backend
+[12:53:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree remove --force C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend
+[12:54:04] GIT exit=0
+[12:54:04] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree prune
+[12:54:04] GIT exit=0
+[12:54:04] OK:   removed
+[12:54:04] STEP: presentations
+[12:54:04] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree remove --force C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations
+[12:54:26] GIT exit=0
+[12:54:26] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree prune
+[12:54:26] GIT exit=0
+[12:54:26] OK:   removed
+[12:54:26] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git show-ref --verify --quiet refs/heads/feat/agentic-workflow-upgrade
+[12:54:26] GIT exit=0
+[12:54:26] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git show-ref --verify --quiet refs/heads/feat/agentic-workflow-upgrade
+[12:54:26] GIT exit=0
+[12:54:36] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git branch -D feat/agentic-workflow-upgrade
+[12:54:36] GIT exit=0
+[12:54:36] GIT stdout: Deleted branch feat/agentic-workflow-upgrade (was b2d6e2c).
+[12:54:36] OK:   deleted feat/agentic-workflow-upgrade in backend
+[12:54:36] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git branch -D feat/agentic-workflow-upgrade
+[12:54:36] GIT exit=0
+[12:54:36] GIT stdout: Deleted branch feat/agentic-workflow-upgrade (was 92d155c).
+[12:54:36] OK:   deleted feat/agentic-workflow-upgrade in presentations

@@ -1,0 +1,944 @@
+[wtf create] started 2026-06-11T12:54:45.7963919+05:30
+[12:54:45] PHASE: Inputs
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git branch --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: feat/ai-consumption
+fix/presentations-island
+main
+staging-api
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git branch -r --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: origin/AI-Foundation-Layer
+origin/AI-NativeV0.99
+origin/AI-models
+origin/AI-orchestrator
+origin/AI-tasks
+origin/Activity-feed-backend
+origin/Ankit/Formnetic_Ai-Feature
+origin/Ankit/tasknetic_AI_Feature
+origin/Ankit/xnetic_Ai_Feature
+origin/Ankit_xnetic_ai
+origin/App-sumo-backend
+origin/Backend-Calendar
+origin/Backend-EPIC-01
+origin/Backend-change-hub
+origin/CC-backend
+origin/Calendar-backend-update
+origin/Calendar-update
+origin/Color-payload-calendar
+origin/Delta-Handler-solved
+origin
+origin/Hub-notification
+origin/Import-export-check
+origin/Notification-update
+origin/Xnetic-Epic-1
+origin/acitvity-image
+origin/activity-feed
+origin/activity-likes
+origin/again-chat-issue
+origin/ai-error-fix
+origin/back/ai-docs-engine
+origin/backend-bug-hunt
+origin/backend-change
+origin/backend-tourcomplete-add
+origin/backend-update
+origin/board-iframe
+origin/bug-fix
+origin/bug/add-org
+origin/bug/added-validation-2
+origin/bug/admin-limits
+origin/bug/ai-board-gen
+origin/bug/ai-board-gen-4
+origin/bug/ai-chat
+origin/bug/ai-chat-threads
+origin/bug/ai-isssue
+origin/bug/ai-limit-fix
+origin/bug/ai-next-step
+origin/bug/all-apps
+origin/bug/blog
+origin/bug/blogs
+origin/bug/board-data
+origin/bug/board-lag
+origin/bug/board-save
+origin/bug/board-share
+origin/bug/board-userlimit
+origin/bug/board-workspaces-hub
+origin/bug/boards-ai-labels
+origin/bug/bootstap.js
+origin/bug/bypass-token-check
+origin/bug/chat-group-message
+origin/bug/chat-limit
+origin/bug/chat-poll-event
+origin/bug/chat-poll-id
+origin/bug/chat-routes
+origin/bug/chat-socket-4
+origin/bug/chat-unread-backend
+origin/bug/chat-xnetic
+origin/bug/crash-fix-3
+origin/bug/crash-fix-docs
+origin/bug/datalane_cx
+origin/bug/date-issue
+origin/bug/delete-calendar-event
+origin/bug/deleted-chat-msg-bg
+origin/bug/doc-ai
+origin/bug/doc-review
+origin/bug/duplicate-form-issue
+origin/bug/duplicated-invite-datanetic
+origin/bug/emailSender
+origin/bug/env
+origin/bug/fixed-envi-formshare
+origin/bug/fixes-2
+origin/bug/forms-ai
+origin/bug/forwarded-message-chat
+origin/bug/helmet
+origin/bug/hub-star-issue
+origin/bug/imagelaneissue
+origin/bug/limit-fix
+origin/bug/login-auth
+origin/bug/mail-reply-forward
+origin/bug/mail-summary-fix
+origin/bug/mail-url-prod
+origin/bug/memberupdate-chat
+origin/bug/null-id-users
+origin/bug/oauth-password
+origin/bug/old-data-bug
+origin/bug/old-sheet
+origin/bug/org-save-fix
+origin/bug/payment-fixes
+origin/bug/pending-msg
+origin/bug/phaseLaneLenth
+origin/bug/phaselane-Content
+origin/bug/poll-calendar-invite
+origin/bug/role-issue
+origin/bug/search-enhancment
+origin/bug/share-board
+origin/bug/sheet-export
+origin/bug/socket-chat
+origin/bug/staging
+origin/bug/template-lane-edit
+origin/bug/token-hub-task
+origin/bug/typo-xneticmodel
+origin/bug/voice-channel-user
+origin/bug/voice-chat
+origin/bug/voice-loop
+origin/bug/whiteboard-functions
+origin/bug/whiteboardsockets
+origin/bug/xnetic-user-issue
+origin/bug/y-signal
+origin/bug/y-url
+origin/bugs/chatroutes_ai
+origin/build-issue
+origin/calendar-hub
+origin/capabilities
+origin/chat-ai
+origin/chat-feature
+origin/chat-issue-solved
+origin/chat-mobile
+origin/chat-sync
+origin/chat-task
+origin/chat/image-bug
+origin/chat/socket-fix
+origin/crash-fix-1
+origin/crash-fix/postActivity
+origin/data-app
+origin/data-pages
+origin/data-template
+origin/doc-anonymous
+origin/doc-setup
+origin/doc-template
+origin/emergency-fix/login
+origin/entry-file
+origin/feat/agentic-workflow-upgrade
+origin/feat/ai-doc-gen
+origin/feat/ai-enhancement
+origin/feat/ai-feed
+origin/feat/ai-ppt
+origin/feat/ai-trigger
+origin/feat/baord-from-sheet
+origin/feat/board-voice-test
+origin/feat/chat-info-routes
+origin/feat/context-aware-ai
+origin/feat/data-export
+origin/feat/docs-fixed
+origin/feat/edit-del-socket
+origin/feat/hub-chat-fixed
+origin/feat/mail-ai-drafts
+origin/feat/mail-ai-feat-2
+origin/feat/mail-calendar-connection
+origin/feat/mail-search
+origin/feat/mail-trash-sent
+origin/feat/mail-update
+origin/feat/message-delivery-tick
+origin/feat/model-upgradation-5.4
+origin/feat/new-mail-parse
+origin/feat/online-status
+origin/feat/optimization-perm
+origin/feat/preview-url
+origin/feat/share-chat-ai-2
+origin/feat/smart-replies-mail
+origin/feat/task-calender-link
+origin/feat/task-complete
+origin/feat/task-generation-ai-2
+origin/feat/task-today-hub
+origin/feat/thread-ai-chat
+origin/feat/threads-in-chat
+origin/feat/voice-and-ai-share
+origin/feat/voice-rec-event
+origin/feat/voicechat-colleboration
+origin/feat/wao-form-scheduling-intent
+origin/feat/wao-orchestrator-spine
+origin/feat/web-push-notifications
+origin/feat/whiteboaord-trash-routes
+origin/feature-magnet
+origin/feature/addedQuestion
+origin/feature/admin-and-env
+origin/feature/admin-whitboard-template
+origin/feature/ai-chat-test
+origin/feature/ai-form-generation
+origin/feature/ai-layouts
+origin/feature/ai-storage-limit-org
+origin/feature/ai-storage-usage
+origin/feature/backend-rbac-user-deletion
+origin/feature/backend-role-permissions
+origin/feature/board-ai-upgrade
+origin/feature/board-collaboration
+origin/feature/board-share
+origin/feature/boards-ai-task
+origin/feature/border
+origin/feature/calender-email-command-center
+origin/feature/capabilities
+origin/feature/centralized-file-system
+origin/feature/data-ai-tools
+origin/feature/data-app-fixes
+origin/feature/datanetic-ai-feature
+origin/feature/datanetic-optimization
+origin/feature/datanetic-query
+origin/feature/doc-pages
+origin/feature/docs-epic5-6-comments-derivation
+origin/feature/dynamic-layout
+origin/feature/ediable-slides
+origin/feature/email-pop-notification
+origin/feature/emailSender
+origin/feature/epic3-complete
+origin/feature/epic5-6
+origin/feature/form-data-sync
+origin/feature/hub-roles-acces
+origin/feature/improvedNextSteps
+origin/feature/journey-map-ai
+origin/feature/layout-test
+origin/feature/meeting-location-backend
+origin/feature/merge
+origin/feature/migrationScript
+origin/feature/mobile-redirect
+origin/feature/optimize-spreadsheet-updates
+origin/feature/persona-template
+origin/feature/pixabay-image
+origin/feature/polls-chat
+origin/feature/postedit
+origin/feature/ppt-ai
+origin/feature/ppt-flow
+origin/feature/ppt-layouts
+origin/feature/ppt-upgrade
+origin/feature/presentation-pages
+origin/feature/role-access-forms
+origin/feature/role-implement-backend
+origin/feature/roleAccess-task
+origin/feature/roles-access-xnetic
+origin/feature/task-app
+origin/feature/template
+origin/feature/templates
+origin/feature/updated-arc
+origin/feature/web-image-search
+origin/feature/workelate-website
+origin/feed-fix
+origin/fix-date
+origin/fix/admin-orgs
+origin/fix/affilate
+origin/fix/ai-storage-limits
+origin/fix/calender-update
+origin/fix/chat-sidebar
+origin/fix/chat-socket
+origin/fix/conflict-solve
+origin/fix/data-preview
+origin/fix/default-groups
+origin/fix/edit-form
+origin/fix/epic3-backend
+origin/fix/file-storage-routes
+origin/fix/folder-structure
+origin/fix/form-backend
+origin/fix/form-file-upload
+origin/fix/form-template-routes
+origin/fix/forms
+origin/fix/forms-theme
+origin/fix/hub-profile-pages
+origin/fix/link
+origin/fix/linkpreview-2
+origin/fix/merge-conflict
+origin/fix/model-downgrade
+origin/fix/org-selector-route
+origin/fix/persona
+origin/fix/presentations-island
+origin/fix/public
+origin/fix/referal
+origin/fix/share-routes
+origin/fix/string
+origin/fix/task
+origin/fix/tasksocket-i
+origin/fix/teamplate
+origin/fix/userjpg-template
+origin/fix/voice-enhancement
+origin/form-bugs
+origin/grp-name-change
+origin/hotfix/ai-error
+origin/hub-ui
+origin/hub-updated
+origin/iframe
+origin/image-error
+origin/last-implement
+origin/link-preview
+origin/login-fix
+origin/mail/catagory
+origin/main
+origin/mcp
+origin/merge/data-ai-tools
+origin/mobile-chat
+origin/mobile-chat-2
+origin/mobile-chat-change
+origin/mobile-notify
+origin/mobile-task-app
+origin/notifications
+origin/onboard
+origin/persona
+origin/persona-fix
+origin/polish-epics
+origin/ppt-ai
+origin/ppt-ai-2
+origin/ppt-ai-3
+origin/ppt-ai-4
+origin/ppt-ai-5
+origin/ppt-template
+origin/presentation
+origin/presentation-ai
+origin/presentation-ai-2
+origin/preview-link-fix
+origin/production-api
+origin/push-notification
+origin/recovered
+origin/restore-old-pr
+origin/revert-103-feat/ai-whiteboard
+origin/revert-104-script/marketuser
+origin/revert-105-revert-104-script/marketuser
+origin/revert-106-revert-103-feat/ai-whiteboard
+origin/revert-110-fix/referal
+origin/revert-111-bug/voice-chat
+origin/revert-112-bug/y-url
+origin/revert-128-feat/optimization-perm
+origin/revert-129-task-assign-2
+origin/revert-130-revert-129-task-assign-2
+origin/revert-131-revert-128-feat/optimization-perm
+origin/revert-133-backend-tourcomplete-add
+origin/revert-135-feat/ai-feed
+origin/revert-136-acitvity-image
+origin/revert-137-bug/bootstap.js
+origin/revert-138-revert-137-bug/bootstap.js
+origin/revert-139-revert-136-acitvity-image
+origin/revert-140-revert-135-feat/ai-feed
+origin/revert-141-revert-133-backend-tourcomplete-add
+origin/revert-161-system-notificaton
+origin/revert-163-vote-chat
+origin/revert-167-bug/limit-fix
+origin/revert-168-revert-167-bug/limit-fix
+origin/revert-174-backend-bug-hunt
+origin/revert-176-bug/blogs
+origin/revert-177-revert-174-backend-bug-hunt
+origin/revert-195-feature/form-data-sync
+origin/revert-196-revert-195-feature/form-data-sync
+origin/revert-220-xnetic-frame
+origin/revert-222-revert-220-xnetic-frame
+origin/revert-23-fix/admin-orgs
+origin/revert-277-bug/search-enhancment
+origin/revert-279-revert-277-bug/search-enhancment
+origin/revert-28-persona-fix
+origin/revert-289-feature/ppt-ai
+origin/revert-291-revert-289-feature/ppt-ai
+origin/revert-299-feature/doc-pages
+origin/revert-30-revert-28-persona-fix
+origin/revert-300-revert-299-feature/doc-pages
+origin/revert-31-revert-30-revert-28-persona-fix
+origin/revert-318-feat/web-push-notifications
+origin/revert-320-revert-318-feat/web-push-notifications
+origin/revert-322-revert-320-revert-318-feat/web-push-notifications
+origin/revert-323-revert-322-revert-320-revert-318-feat/web-push-notifications
+origin/revert-334-fix/linkpreview-2
+origin/revert-335-fix/tasksocket-i
+origin/revert-337-revert-334-fix/linkpreview-2
+origin/revert-341-fix/link
+origin/revert-342-revert-341-fix/link
+origin/revert-348-bug/ai-board-gen-4
+origin/revert-360-revert-348-bug/ai-board-gen-4
+origin/revert-372-bug/ai-limit-fix
+origin/revert-376-feature/epic3-complete
+origin/revert-379-revert-376-feature/epic3-complete
+origin/revert-395-feature/updated-arc
+origin/revert-396-revert-395-feature/updated-arc
+origin/revert-397-revert-396-revert-395-feature/updated-arc
+origin/revert-399-login-fix
+origin/revert-403-test/conflit-solve
+origin/revert-404-feat/docs-fixed
+origin/revert-406-revert-403-test/conflit-solve
+origin/revert-416-feature/ppt-flow
+origin/revert-417-revert-416-feature/ppt-flow
+origin/revert-434-feature/data-app-fixes
+origin/revert-71-bug/date-issue
+origin/revert-82-feature/ai-storage-limit-org
+origin/revert-83-bug/board-workspaces-hub
+origin/revert-84-revert-83-bug/board-workspaces-hub
+origin/revert-85-revert-82-feature/ai-storage-limit-org
+origin/revert/push-notification-changes
+origin/run-resolve
+origin/share-fix
+origin/share-modal
+origin/socket-issue
+origin/staging-api
+origin/system-notificaton
+origin/task-assign-2
+origin/task-bug
+origin/template-route-fixes
+origin/test/conflit-solve
+origin/token-fix-backend
+origin/ui-consist
+origin/user-stories
+origin/userDetails
+origin/vote-chat
+origin/wao-connect
+origin/wao-k5-k6-eval-fix
+origin/what-new
+origin/whiteboard-routes
+origin/xnetic-frame
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git branch --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: feat/ai-consumption
+main
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git branch -r --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: origin/AI-tasks
+origin/Activity-Feed-update
+origin/Activity-UI
+origin/Activity-ui-Enhance
+origin/After-tour-fix
+origin/CC-change
+origin
+origin/Hub-new
+origin/Profile-image-adjust
+origin/Role_Deletion
+origin/User-Org-Update
+origin/activity-feed
+origin/activity-ui
+origin/add-onboarding
+origin/add/workspace-page
+origin/add_employee_fix
+origin/ai-credit
+origin/bug/ai-chat
+origin/bug/board-workspaces-hub
+origin/bug/chat-import
+origin/bug/dateFormat
+origin/bug/employee-fix
+origin/bug/hub-app
+origin/bug/hub-minor-bug
+origin/bug/limit-fix
+origin/bug/payment-fixes
+origin/bug/prod
+origin/bug/roleMember-count
+origin/bug/role_deletion_fix
+origin/bug/search-enhancment
+origin/bug/template-navigation
+origin/bug/unified-search
+origin/bugs/hub-profile-navbar
+origin/build-issue
+origin/build-issue-1
+origin/chat-logo
+origin/common-loader-toaster
+origin/data-app
+origin/feat/command-center
+origin/feat/desktop-notifications
+origin/feat/org-selector
+origin/feat/perm-optimization
+origin/feat/tab-notification
+origin/feat/todays-task
+origin/feat/wao-orchestrator-spine
+origin/feature/FilesTab
+origin/feature/ai-chat-test
+origin/feature/ai-storage-usage
+origin/feature/board-template
+origin/feature/boards_addition
+origin/feature/chat-button
+origin/feature/chat-button-added
+origin/feature/chatButton
+origin/feature/hub-rbac-deletion-flow
+origin/feature/hub-template
+origin/feature/meeting-nudge
+origin/feature/permission_in_roles
+origin/feature/roles-access
+origin/feature/template
+origin/feature/template-preview
+origin/feature/user-roles-groups
+origin/feed-fix
+origin/feed-fix-2
+origin/files-bug
+origin/fix-date
+origin/fix/affilate
+origin/fix/ai-storage-limit-in-profile
+origin/fix/asd
+origin/fix/customermap-template
+origin/fix/files-and-loading
+origin/fix/paywall-condition
+origin/fix/previewLink
+origin/fix/profile-pages
+origin/fix/redirect-link
+origin/fix/sidebar
+origin/fix/token-hub
+origin/fix/usenavigate
+origin/fullscreen
+origin/hub-1
+origin/hub-bug-hunt
+origin/hub-command-center
+origin/hub-files
+origin/hub-minimal-changes
+origin/hub-notification
+origin/hub-search
+origin/hub-ui
+origin/hub-ui-2
+origin/hub-ui-fix
+origin/logout-fix
+origin/main
+origin/nodata-page
+origin/notification-center
+origin/notification-fix
+origin/notifications-test
+origin/onboard
+origin/optional-chaining
+origin/package-push
+origin/package.json
+origin/production-app
+origin/prompt-windoew
+origin/refactor/mobile-responsive
+origin/responsive
+origin/revert-115-bug/prod
+origin/revert-20-feature/FilesTab
+origin/revert-55-data-app
+origin/revert-56-revert-55-data-app
+origin/revert-61-add-onboarding
+origin/revert-63-fix/affilate
+origin/revert-65-revert-63-fix/affilate
+origin/revert-66-revert-61-add-onboarding
+origin/revert-67-revert-66-revert-61-add-onboarding
+origin/revert-77-bug/employee-fix
+origin/roles-ui-fix
+origin/share-post-fix
+origin/small-bugs
+origin/staging-app
+origin/ui-changes
+origin/wao-connect-ui
+origin/what-new
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git branch --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: feat/ai-consumption
+feat/last-test
+feat/test
+main
+staging-app
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git branch -r --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: origin
+origin/ai-images
+origin/bug/layout
+origin/bug/layout-fix
+origin/bug/main
+origin/duplicate-button
+origin/editor-fixes
+origin/editor-fixes-v2
+origin/error-fix
+origin/favicon
+origin/favicon-fix
+origin/feat/agentic-workflow-upgrade
+origin/feature/ai
+origin/feature/ai-coach
+origin/feature/ai-layouts
+origin/feature/ai-ppt
+origin/feature/block-controls-duplicate-delete
+origin/feature/editable-slides
+origin/feature/editor
+origin/feature/editor-toolbar
+origin/feature/export-image
+origin/feature/layout-first-approach
+origin/feature/layout-ui
+origin/feature/layouts
+origin/feature/logo-theme-text-fix
+origin/feature/ppt-deck-share-form
+origin/feature/ppt-design
+origin/feature/ppt-flow
+origin/feature/ppt-upgrade
+origin/feature/qa-fix
+origin/feature/recent-star-trash-pdf-fix
+origin/feature/template-preview
+origin/feature/updated-arc
+origin/fix/contentblock-flex-layout
+origin/main
+origin/ppt-ai-2
+origin/ppt-ai-3
+origin/ppt-ai-4
+origin/ppt-ai-5
+origin/presentation-ai
+origin/presentation-changes
+origin/production-app
+origin/recent-file
+origin/route-fix
+origin/share-completed
+origin/staging-app
+origin/template
+origin/test/merge-test
+origin/ui-fix
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git branch --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: feat/ai-consumption
+main
+staging
+[12:55:35] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git branch -r --format=%(refname:short)
+[12:55:35] GIT exit=0
+[12:55:35] GIT stdout: origin/AI-Loader
+origin/Add-commonLoader
+origin/Calendar-SDK
+origin/Calender-fix
+origin/Commmonloder-done-all
+origin/CommonLoader-enhance
+origin/Commonloader-changes
+origin/Commonloader-fix
+origin/Delta-2
+origin/EPIC-1-Artifact
+origin/Error-solve-commonloader
+origin/Fast-to-moderate-Loader-timer-in-Sdk
+origin
+origin/New-switchTo
+origin/RBAC-update
+origin/SDK-EPIC-1
+origin/SDK-change
+origin/SDK-changens
+origin/SwitchTo-new-apps
+origin/UI-SDK
+origin/add/workspace-page
+origin/added-hub-icon
+origin/ai-chat
+origin/bug/ai-chat-form-1
+origin/bug/ai-chat-threads
+origin/bug/chat
+origin/bug/chat-countload
+origin/bug/chat-file-image-fix
+origin/bug/chat-files
+origin/bug/chat-files-fix-2
+origin/bug/chat-groupmembers
+origin/bug/chat-img
+origin/bug/chat-input-calendar
+origin/bug/chat-latency-1
+origin/bug/chat-layout-menu-1
+origin/bug/chat-load-issue
+origin/bug/chat-poll-fix
+origin/bug/chat-poll-reaction
+origin/bug/chat-poll-undo
+origin/bug/chat-sdk
+origin/bug/chat-sound-unread
+origin/bug/chat-switch-1
+origin/bug/chat-switch-2
+origin/bug/chat-ui-4
+origin/bug/chat-ui-poll
+origin/bug/chat-urloverflow
+origin/bug/count-duplicate
+origin/bug/data-icon-list
+origin/bug/dataicon
+origin/bug/domain-fix
+origin/bug/duplicate-ai-chat
+origin/bug/event-modal-1
+origin/bug/fix-chat-unread-group
+origin/bug/form-board-ai
+origin/bug/forwarded-msg-chat
+origin/bug/image-cdn-fix
+origin/bug/load-fix2
+origin/bug/meeting-event-modal
+origin/bug/minor-issues-chat
+origin/bug/notifiation
+origin/bug/reactions-ui
+origin/bug/storage-chat
+origin/bug/unread-count-fix-1
+origin/bug/updating-build-files
+origin/bugs/chat-indicator
+origin/calendar-chat-connection
+origin/calendar-sdk-update
+origin/chat-bug-6
+origin/chat-fix-2
+origin/chat-fix-3
+origin/chat-issue
+origin/chat-issue-fixed
+origin/chat-role-issue
+origin/chat-sync
+origin/chat-ui
+origin/chat-ui-2
+origin/chat-ui-3
+origin/chat-ui-4
+origin/chat-ui-5
+origin/chat-window
+origin/chat/bug-fix-4
+origin/collapsed_navbar
+origin/common
+origin/common-component
+origin/common-fix
+origin/common-ui
+origin/commonloader
+origin/conflict-resolve
+origin/crashing-solve
+origin/data-app
+origin/dataNetic-logo
+origin/desc-fix
+origin/enhancement/chat-pannel
+origin/error-solved
+origin/export-button
+origin/feat/ai-chat-share
+origin/feat/chat-info
+origin/feat/chat-optimization
+origin/feat/chat-reduce
+origin/feat/chat-split-2
+origin/feat/chat-video-support
+origin/feat/edit-delete-chat
+origin/feat/file-upload-enchance
+origin/feat/live-user-count
+origin/feat/merge-conflict
+origin/feat/message-delivery-ticks
+origin/feat/org-selector
+origin/feat/push-notifications-desktop
+origin/feat/share-chat-ai-2
+origin/feat/status-online
+origin/feat/threads-ai
+origin/feat/threads-in-chat
+origin/feat/updated-ai-board-generation
+origin/feat/url-preview
+origin/feat/wao-orchestrator-spine
+origin/feature/ai-chat
+origin/feature/ai-chat-ui
+origin/feature/boards-addition
+origin/feature/chat
+origin/feature/chat-reply
+origin/feature/chat-sdk
+origin/feature/doc-ai
+origin/feature/return_to_hub
+origin/feature/sdk-share-modal-sourcemap-fix
+origin/feed-fix
+origin/final-fix
+origin/fix-public
+origin/fix/chat-reducer
+origin/fix/chat-switchto
+origin/fix/chat-ui
+origin/fix/comm-nav-1
+origin/fix/domain-add-mail
+origin/fix/final-edit
+origin/fix/live-presense
+origin/fix/missing-file
+origin/fix/navbar-title
+origin/fix/sidebar-footer-menu
+origin/fix/sidebar-icons
+origin/fix/sidebar-items-active
+origin/fix/sidebar-menu
+origin/fix/sidebar-profileImage
+origin/fixing-bugs
+origin/fullscreen
+origin/last-implement
+origin/last2-fix
+origin/loader-modify
+origin/logout-confirmation-modal
+origin/main
+origin/mcp
+origin/mcp-2
+origin/new-icons
+origin/new/sidebar-icons
+origin/onboard
+origin/one-error
+origin/ppt-route
+origin/production
+origin/prompt-window
+origin/refactor/chat-components-1
+origin/refactor/hub-mobile-responsive
+origin/refactor/logo-clickable
+origin/refactor/toggle-button
+origin/responsive
+origin/revert-103-refactor/chat-components-1
+origin/revert-15-refactor/logo-clickable
+origin/revert-163-UI-SDK
+origin/revert-30-feature/chat-sdk
+origin/revert-42-bug/chat-ai-redux
+origin/revert-43-revert-42-bug/chat-ai-redux
+origin/revert-46-common
+origin/revert-47-Add-commonLoader
+origin/revert-96-fix/comm-nav-1
+origin/share-completed
+origin/socket-connection
+origin/stage-fix
+origin/staging
+origin/staging-crash-solve
+origin/switchTo-updated
+origin/ui-change
+origin/voice-channel-optimisation
+[12:55:35] DETAIL: 702 branches exist here — type a name below.
+[12:55:35] DETAIL: A new name starts a fresh branch; an existing/peer/remote name checks that out.
+[12:56:16] PHASE: Plan
+[12:56:16] INFO: Context:    work
+[12:56:16] INFO: Project:    workelate  (multi)
+[12:56:16] INFO: Branch:     feat/wire-cc-to-ppt
+[12:56:16] INFO: Worktree:   backend, hub, presentations, sdk
+[12:56:16] INFO: Deps (ws):  workelate-auth-app
+[12:56:16] INFO: Path:       C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt
+[12:56:16] INFO: Agents:     1 planner + 1 executor
+[12:56:21] PHASE: Worktrees
+[12:56:21] STEP: [1/4] backend
+[12:56:21] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree prune
+[12:56:21] GIT exit=0
+[12:56:21] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git show-ref --verify --quiet refs/heads/feat/wire-cc-to-ppt
+[12:56:21] GIT exit=1
+[12:56:21] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git show-ref --verify --quiet refs/remotes/origin/feat/wire-cc-to-ppt
+[12:56:21] GIT exit=1
+[12:56:21] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git symbolic-ref refs/remotes/origin/HEAD
+[12:56:21] GIT exit=0
+[12:56:21] GIT stdout: refs/remotes/origin/main
+[12:56:21] DETAIL: branch source: new (origin/main)
+[12:56:21] DETAIL: fetching origin...
+[12:56:21] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git fetch --prune origin
+[12:56:23] GIT exit=0
+[12:56:23] GIT stderr: From https://github.com/workelate/workelate-backend
+   16338d1..948df46  AI-NativeV0.99        -> origin/AI-NativeV0.99
+ * [new branch]      CC-1-Backend          -> origin/CC-1-Backend
+   552a9dd..f6107d1  feature/admin-and-env -> origin/feature/admin-and-env
+ * [new branch]      feature/gmail-disconnect -> origin/feature/gmail-disconnect
+ * [new branch]      fix/products-duplicate-schema -> origin/fix/products-duplicate-schema
+   056960e..80da25f  production-api        -> origin/production-api
+   07f88fa..4ea7cf9  staging-api           -> origin/staging-api
+[12:56:23] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree add -b feat/wire-cc-to-ppt C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\backend origin/main
+[12:56:25] GIT exit=0
+[12:56:25] GIT stdout: branch 'feat/wire-cc-to-ppt' set up to track 'origin/main'.
+HEAD is now at 7fe7962 Merge pull request #460 from workelate/staging-api
+[12:56:25] GIT stderr: Preparing worktree (new branch 'feat/wire-cc-to-ppt')
+Updating files:  91% (2540/2791)Updating files:  92% (2568/2791)Updating files:  93% (2596/2791)Updating files:  94% (2624/2791)Updating files:  95% (2652/2791)Updating files:  96% (2680/2791)Updating files:  97% (2708/2791)Updating files:  98% (2736/2791)Updating files:  99% (2764/2791)Updating files: 100% (2791/2791)Updating files: 100% (2791/2791), done.
+[12:56:25] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git ls-files --others --ignored --exclude-standard --directory
+[12:56:25] GIT exit=0
+[12:56:25] GIT stdout: .env
+.husky/_/.gitignore
+assets/
+node_modules/
+package-lock.json
+[12:56:25] COPY-IGNORED: .env → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\backend
+[12:56:25] COPY-IGNORED: .husky/_/.gitignore → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\backend
+[12:56:25] COPY-IGNORED: assets → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\backend
+[12:56:25] COPY-IGNORED: package-lock.json → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\backend
+[12:56:25] OK: backend — copied from main: .env, .husky/_/.gitignore, assets, package-lock.json
+[12:56:25] STEP: [2/4] hub
+[12:56:25] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git worktree prune
+[12:56:25] GIT exit=0
+[12:56:25] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git show-ref --verify --quiet refs/heads/feat/wire-cc-to-ppt
+[12:56:25] GIT exit=1
+[12:56:25] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git show-ref --verify --quiet refs/remotes/origin/feat/wire-cc-to-ppt
+[12:56:25] GIT exit=1
+[12:56:25] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git symbolic-ref refs/remotes/origin/HEAD
+[12:56:25] GIT exit=0
+[12:56:25] GIT stdout: refs/remotes/origin/main
+[12:56:25] DETAIL: branch source: new (origin/main)
+[12:56:25] DETAIL: fetching origin...
+[12:56:25] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git fetch --prune origin
+[12:56:27] GIT exit=0
+[12:56:27] GIT stderr: From https://github.com/workelate/workelate-hub-app
+ * [new branch]      CC-UI          -> origin/CC-UI
+   eab9991..427ffbd  production-app -> origin/production-app
+   c185e77..ff64e67  staging-app    -> origin/staging-app
+[12:56:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git worktree add -b feat/wire-cc-to-ppt C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\hub origin/main
+[12:56:27] GIT exit=0
+[12:56:27] GIT stdout: branch 'feat/wire-cc-to-ppt' set up to track 'origin/main'.
+HEAD is now at 686be91 Merge pull request #142 from workelate/CC-UI
+[12:56:27] GIT stderr: Preparing worktree (new branch 'feat/wire-cc-to-ppt')
+[12:56:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git ls-files --others --ignored --exclude-standard --directory
+[12:56:27] GIT exit=0
+[12:56:27] GIT stdout: node_modules/
+package-lock.json
+[12:56:27] COPY-IGNORED: package-lock.json → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\hub
+[12:56:27] OK: hub — copied from main: package-lock.json
+[12:56:27] STEP: [3/4] presentations
+[12:56:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree prune
+[12:56:27] GIT exit=0
+[12:56:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git show-ref --verify --quiet refs/heads/feat/wire-cc-to-ppt
+[12:56:27] GIT exit=1
+[12:56:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git show-ref --verify --quiet refs/remotes/origin/feat/wire-cc-to-ppt
+[12:56:27] GIT exit=1
+[12:56:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git symbolic-ref refs/remotes/origin/HEAD
+[12:56:27] GIT exit=0
+[12:56:27] GIT stdout: refs/remotes/origin/main
+[12:56:27] DETAIL: branch source: new (origin/main)
+[12:56:27] DETAIL: fetching origin...
+[12:56:27] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git fetch --prune origin
+[12:56:29] GIT exit=0
+[12:56:29] GIT stderr: From https://github.com/workelate/workelate-presentations-app
+ * [new branch]      feat/cards-preview-update -> origin/feat/cards-preview-update
+   0d97010..97bda16  staging-app -> origin/staging-app
+[12:56:29] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree add -b feat/wire-cc-to-ppt C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\presentations origin/main
+[12:56:29] GIT exit=0
+[12:56:29] GIT stdout: branch 'feat/wire-cc-to-ppt' set up to track 'origin/main'.
+HEAD is now at 97bda16 Merge pull request #66 from workelate/feat/cards-preview-update
+[12:56:29] GIT stderr: Preparing worktree (new branch 'feat/wire-cc-to-ppt')
+[12:56:29] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git ls-files --others --ignored --exclude-standard --directory
+[12:56:29] GIT exit=0
+[12:56:29] GIT stdout: ARCHITECTURE.md
+build/
+node_modules/
+[12:56:29] COPY-IGNORED: ARCHITECTURE.md → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\presentations
+[12:56:29] OK: presentations — copied from main: ARCHITECTURE.md
+[12:56:29] STEP: [4/4] sdk
+[12:56:29] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git worktree prune
+[12:56:29] GIT exit=0
+[12:56:29] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git show-ref --verify --quiet refs/heads/feat/wire-cc-to-ppt
+[12:56:29] GIT exit=1
+[12:56:29] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git show-ref --verify --quiet refs/remotes/origin/feat/wire-cc-to-ppt
+[12:56:29] GIT exit=1
+[12:56:29] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git symbolic-ref refs/remotes/origin/HEAD
+[12:56:29] GIT exit=0
+[12:56:29] GIT stdout: refs/remotes/origin/main
+[12:56:29] DETAIL: branch source: new (origin/main)
+[12:56:29] DETAIL: fetching origin...
+[12:56:29] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git fetch --prune origin
+[12:56:31] GIT exit=0
+[12:56:31] GIT stderr: From https://github.com/workelate/workelate-sdk
+ * [new branch]        UI-issue   -> origin/UI-issue
+ * [new branch]        feat/cards-preview-update -> origin/feat/cards-preview-update
+   ccc9e870..15b32448  feat/wao-orchestrator-spine -> origin/feat/wao-orchestrator-spine
+   a4354274..0d81e545  production -> origin/production
+   be4ff790..1f286485  staging    -> origin/staging
+[12:56:31] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git worktree add -b feat/wire-cc-to-ppt C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\sdk origin/main
+[12:56:31] GIT exit=0
+[12:56:31] GIT stdout: branch 'feat/wire-cc-to-ppt' set up to track 'origin/main'.
+HEAD is now at a7942884 Merge pull request #185 from workelate/feat/cards-preview-update
+[12:56:31] GIT stderr: Preparing worktree (new branch 'feat/wire-cc-to-ppt')
+[12:56:31] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git ls-files --others --ignored --exclude-standard --directory
+[12:56:31] GIT exit=0
+[12:56:31] GIT stdout: build/
+dev/dist/
+dev/node_modules/
+dev/package-lock.json
+[12:56:32] COPY-IGNORED: dev/dist → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\sdk
+[13:14:44] COPY-IGNORED: dev/node_modules → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\sdk
+[13:14:44] COPY-IGNORED: dev/package-lock.json → C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\sdk
+[13:14:44] OK: sdk — copied from main: dev/dist, dev/node_modules, dev/package-lock.json
+[13:14:44] PHASE: Artifacts
+[13:14:45] OK: executor folders: exec-1
+[13:14:45] OK: _PLAN.md scaffolded in .plan/
+[13:14:45] OK: workspace written: workelate-feat-wire-cc-to-ppt.code-workspace
+[13:14:45] OK: .wtf-meta.json saved
+[13:14:45] PHASE: Opening feat/wire-cc-to-ppt
+[13:14:45] STEP: VS Code workspace
+[13:14:45] OK: code launched
+[13:14:45] STEP: agent window
+[13:14:45] WT: wt -w wtf-agents-workelate-feat-wire-cc-to-ppt new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt --title "🧠 plan" --tabColor #F59E0B ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt --title "🤖 exec-1" --tabColor #3B82F6
+[13:14:45] OK: agents → wtf-agents-workelate-feat-wire-cc-to-ppt
+[13:14:45] STEP: runner window
+[13:14:45] WT: wt -w wtf-runners-workelate-feat-wire-cc-to-ppt new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\backend --title "🚀 backend [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\hub --title "🚀 hub [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\presentations --title "🚀 presentations [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\worktrees\workelate-feat-wire-cc-to-ppt\sdk --title "🚀 sdk [F]" --tabColor #10B981 ; new-tab -d C:\Users\jay\Documents\workelate\main\workelate-auth-app --title "📦 workelate-auth-app [M]" --tabColor #6B7280
+[13:14:45] OK: runners → wtf-runners-workelate-feat-wire-cc-to-ppt

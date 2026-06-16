@@ -1,0 +1,5 @@
+[wtf config] started 2026-06-10T10:49:37.3959881+05:30
+[10:49:37] DETAIL: A root = a folder full of repos (personal, work). Repos inside it are found automatically.
+[10:49:37] DETAIL: A multi-repo group = repos you bundle under one name (e.g. pigeon).
+[10:51:24] CONFIG saved to C:\Users\jay\.wtf\config.json
+[10:51:24] OK: updated → 'workelate'

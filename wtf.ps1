@@ -63,32 +63,35 @@ $script:TabColors = @{
 }
 
 # ── Agentic terminal "slots" ────────────────────────────────────────────────
-# A slot = one agentic terminal tab/pane tied to one CLI session. Slots are
-# stored per-feature in .wtf-meta.json and are CLI-agnostic: each slot carries
-# the FULL launch/resume command (session id included) that you paste in. wtf's
-# only job is to spawn the tab/pane and run that command verbatim — it never
-# touches whatever the CLI prompts next.
+# A slot = one agentic terminal tab tied to one CLI session. Slots are stored
+# per-feature in .wtf-meta.json and are CLI-agnostic: each slot carries the FULL
+# launch/resume command (session id included) that you paste in. wtf's only job
+# is to spawn the tab and run that command verbatim — it never touches whatever
+# the CLI prompts next.
 #
-# Each role has: a glyph (tab title), a tab color, and a layout rule that the
-# launcher hardcodes. The two default executors share ONE tab as side-by-side
-# panes (exec-1 left, exec-2 right); the planner and any other role get their
-# own tab.
-$script:WtfRoles = [ordered]@{
-    planner    = @{ Label = 'planner';          Glyph = '🧠'; Color = '#F59E0B'; Layout = 'tab' }       # orange
-    'root-exec'= @{ Label = 'root executor';    Glyph = '🤖'; Color = '#3B82F6'; Layout = 'pane-exec' } # blue
-    freeform   = @{ Label = 'freeform executor';Glyph = '🦾'; Color = '#A855F7'; Layout = 'tab' }       # purple
-    researcher = @{ Label = 'researcher';        Glyph = '🔬'; Color = '#14B8A6'; Layout = 'tab' }       # teal
-    custom     = @{ Label = 'custom';            Glyph = '⌨'; Color = '#6B7280'; Layout = 'tab' }       # gray
-}
+# There are NO roles. Every terminal is the same kind of thing: a named tab that
+# opens at the feature root (so the agent sees every worktree at once) and runs
+# its saved command. Terminals are auto-named from the Greek pool below, like
+# editor tabs: opening a new one takes the first free name; closing one frees
+# that name for reuse. A single 🤖 glyph fronts every tab; only the name + color
+# differ between them.
+$script:WtfTermGlyph = '🤖'
 
-# Only this layout shares ONE tab as side-by-side panes; every other layout is
-# its own tab. Centralized so the launcher + previews agree on what "an executor
-# pane" is.
-$script:WtfPaneLayout = 'pane-exec'
+# The auto-naming pool. `New-WtfNextTermName` hands out the first name not already
+# in use; once all 24 are taken it wraps to alpha-2, beta-2, … (you will never
+# realistically open that many, but it never breaks).
+$script:WtfTermNames = @(
+    'alpha','beta','gamma','delta','epsilon','zeta','eta','theta','iota','kappa',
+    'lambda','mu','nu','xi','omicron','pi','rho','sigma','tau','upsilon',
+    'phi','chi','psi','omega'
+)
 
-# The fresh-feature default executor count (a planner is always added on top).
-# `wtf create` lets you raise/lower this per feature based on task size.
-$script:WtfDefaultExecCount = 2
+# Rotating tab-color palette, indexed by a terminal's position in the Greek pool
+# so each name keeps a stable, distinct color (alpha=blue, beta=green, …).
+$script:WtfTermColors = @(
+    '#3B82F6','#10B981','#F59E0B','#A855F7','#14B8A6','#EF4444','#6366F1','#EC4899',
+    '#84CC16','#F97316','#06B6D4','#8B5CF6'
+)
 
 # A git worktree only checks out TRACKED files, so gitignored-but-useful things
 # (.env, graphify-out/, local config, certs, data) don't come along. wtf copies
@@ -948,7 +951,7 @@ function Add-WtfGitExclude {
     <#
     .SYNOPSIS
         Add patterns to a repo's LOCAL exclude (.git/info/exclude) so wtf's own
-        artifacts (_PLAN.md, .wtf-meta.json) are git-ignored without ever editing
+        artifacts (.plan/, .wtf-meta.json) are git-ignored without ever editing
         — or committing — the project's tracked .gitignore.
     #>
     param(
@@ -1082,60 +1085,73 @@ function New-WtfMeta {
 function New-WtfSlot {
     <#
     .SYNOPSIS
-        Build one slot object. $Command is the FULL launch/resume command (with
+        Build one terminal slot. $Command is the FULL launch/resume command (with
         the session id baked in) that wtf runs verbatim; empty = "open the tab
-        but don't auto-run anything" (you start it yourself).
+        but don't auto-run anything" (you start it yourself). Terminals have no
+        role — just a name and a command.
     #>
     param(
-        [Parameter(Mandatory)][string]$Role,   # key of $script:WtfRoles
         [Parameter(Mandatory)][string]$Name,   # short label -> tab title
         [string]$Command = ''
     )
-    @{ role = $Role; name = $Name; command = $Command }
+    @{ name = $Name; command = $Command }
 }
 
-function New-WtfSuggestedSlots {
+function New-WtfNextTermName {
     <#
     .SYNOPSIS
-        The SUGGESTED roster for a fresh feature: one planner + N root executors
-        (exec-1..exec-N). These are only suggestions the first-time `wtf edit`
-        walk-through pre-fills — they are NOT saved until you give each a real
-        resume command. We never persist empty slots.
+        The first Greek name not already used by $ExistingNames (case-insensitive).
+        Once all 24 are taken it wraps to alpha-2, beta-2, … so it never runs out.
+        Closing a terminal frees its name, so the next add reuses the lowest gap.
     #>
-    param([int]$Executors = -1)
-    if ($Executors -lt 0) { $Executors = $script:WtfDefaultExecCount }
-    if ($Executors -lt 0) { $Executors = 0 }
-    $out = @( @{ role = 'planner'; name = 'plan' } )
-    for ($i = 1; $i -le $Executors; $i++) {
-        $out += @{ role = 'root-exec'; name = "exec-$i" }
+    param([string[]]$ExistingNames = @())
+    $used = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($n in @($ExistingNames)) { if ($n) { [void]$used.Add($n) } }
+    foreach ($n in $script:WtfTermNames) { if (-not $used.Contains($n)) { return $n } }
+    # All base names taken — wrap with a numeric suffix (alpha-2, beta-2, …).
+    $round = 2
+    while ($true) {
+        foreach ($n in $script:WtfTermNames) {
+            $cand = "$n-$round"
+            if (-not $used.Contains($cand)) { return $cand }
+        }
+        $round++
     }
-    return $out
 }
 
-function Get-WtfRoleInfo {
-    # Role descriptor, falling back to 'custom' for anything unknown so a
-    # hand-edited meta or a future role never crashes the launcher.
-    param([string]$Role)
-    if ($Role -and $script:WtfRoles.Contains($Role)) { return $script:WtfRoles[$Role] }
-    return $script:WtfRoles['custom']
+function Get-WtfTermColor {
+    # Stable color for a terminal name: keyed to the base Greek name's index so
+    # alpha is always blue, beta always green, etc. Unknown/custom names fall back
+    # to a hash so they still get a consistent, distinct-ish color.
+    param([string]$Name)
+    $base = ($Name -replace '-\d+$','').ToLower()
+    $idx  = [Array]::IndexOf($script:WtfTermNames, $base)
+    if ($idx -lt 0) {
+        $h = 0; foreach ($c in $base.ToCharArray()) { $h = ($h * 31 + [int]$c) }
+        $idx = [Math]::Abs($h)
+    }
+    return $script:WtfTermColors[$idx % $script:WtfTermColors.Count]
 }
 
 function _wtf_normalize_slots {
     # Shared parser for both active + archived slot arrays from a meta property.
-    # Slots may have EMPTY commands (e.g., fresh placeholders from `wtf create` —
-    # you paste session IDs into the blank terminals). Non-empty commands are real
-    # resumed sessions. Both are valid and shown in the launcher.
+    # Slots may have EMPTY commands (e.g., a fresh placeholder from `wtf create` —
+    # you paste the session id into the blank terminal). Non-empty commands are
+    # real resumed sessions. Both are valid and shown in the launcher.
+    #
+    # Back-compat: old metas stored a `role` key — we simply ignore it now. A slot
+    # only needs a `name`; a missing/blank name is auto-filled from the Greek pool
+    # so a hand-edited or legacy meta never produces a nameless tab.
     param($Raw)
     $out = @()
+    $seen = @()
     foreach ($s in @($Raw)) {
         if (-not $s) { continue }
-        if (-not (Test-ObjectHasKey $s 'role') -or -not (Test-ObjectHasKey $s 'name')) { continue }
+        $name = if (Test-ObjectHasKey $s 'name') { [string](Get-ObjectValue $s 'name') } else { '' }
+        if ([string]::IsNullOrWhiteSpace($name)) { $name = New-WtfNextTermName -ExistingNames $seen }
+        $seen += $name
         $cmd = if (Test-ObjectHasKey $s 'command') { [string](Get-ObjectValue $s 'command') } else { '' }
-        $rec = @{
-            role    = [string](Get-ObjectValue $s 'role')
-            name    = [string](Get-ObjectValue $s 'name')
-            command = $cmd
-        }
+        $rec = @{ name = $name; command = $cmd }
         if (Test-ObjectHasKey $s 'archivedAt') { $rec.archivedAt = [string](Get-ObjectValue $s 'archivedAt') }
         $out += $rec
     }
@@ -1145,8 +1161,8 @@ function _wtf_normalize_slots {
 function Get-WtfSlots {
     <#
     .SYNOPSIS
-        The feature's ACTIVE agent slots (every one has a real command). A fresh
-        feature has none — slots are only born in `wtf edit`. No default seeding.
+        The feature's ACTIVE agent terminals. `wtf create` seeds one blank
+        placeholder; you paste its resume command in `wtf edit`.
     #>
     param($Meta)
     $raw = if ($Meta -and (Test-ObjectHasKey $Meta 'slots')) { Get-ObjectValue $Meta 'slots' } else { $null }
@@ -1165,18 +1181,9 @@ function Get-WtfArchivedSlots {
 }
 
 function Get-WtfSlotTitle {
-    # The tab/pane title for a slot: "<glyph> <name>".
+    # The tab title for a terminal: "<glyph> <name>".
     param($Slot)
-    $info = Get-WtfRoleInfo $Slot.role
-    return "$($info.Glyph) $($Slot.name)"
-}
-
-function Get-WtfExecutorNames {
-    # Names of the executor slots (the pane-exec roles) in declared order. This
-    # is the live executor roster — drives the per-executor .plan/ folders and
-    # the plan's assignment table.
-    param($Slots)
-    return @(foreach ($s in @($Slots)) { if ((Get-WtfRoleInfo $s.role).Layout -eq $script:WtfPaneLayout) { $s.name } })
+    return "$($script:WtfTermGlyph) $($Slot.name)"
 }
 
 function Set-WtfMetaSlots {
@@ -1296,8 +1303,7 @@ function Write-WtfWorkspace {
         [Parameter(Mandatory)][string]$FeatureDir,
         [Parameter(Mandatory)]$Worktrees,        # array of @{ Name; Dir }
         $Deps = @(),                             # array of @{ Name; Dir }
-        [string[]]$IgnoreRepos = @(),            # source main-checkouts to hide as phantoms
-        [string]$PlanRelative = '_PLAN.md'
+        [string[]]$IgnoreRepos = @()             # source main-checkouts to hide as phantoms
     )
     # Folders are addressed relative to the workspace file's location.
     $wsParent = Split-Path $WorkspacePath -Parent
@@ -1305,14 +1311,14 @@ function Write-WtfWorkspace {
 
     $list = @($Worktrees)
     # Mono = the single worktree IS the feature dir. Its repo root already holds
-    # _PLAN.md, so one folder (the repo) is enough — no separate "plan" folder.
+    # the .plan/ folder, so one folder (the repo) is enough — no separate "plan".
     $isMono = ($list.Count -eq 1 -and $list[0].Dir -eq $FeatureDir)
 
     $allFolders = @()
     if (-not $isMono) {
         # Multi: point the plan folder at .plan/ specifically. Pointing it at the
         # feature root would make VS Code also render the worktree subfolders as
-        # children of "plan" (duplicating them). .plan/ holds only _PLAN.md.
+        # children of "plan" (duplicating them). .plan/ holds the plan docs.
         $planDir = Join-Path $FeatureDir '.plan'
         if (-not (Test-Path $planDir)) { New-Item -ItemType Directory -Path $planDir -Force | Out-Null }
         $allFolders += @{ name = "📋 plan"; path = (& $rel $planDir) }
@@ -1335,216 +1341,225 @@ function Write-WtfWorkspace {
 }
 
 # ============================================================================
-# _PLAN.md SCAFFOLD
+# .plan/ DOCS SCAFFOLD — PLAN.md (current map) + LOG.md (daily work log)
 # ============================================================================
 
-function Write-WtfPlan {
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)][string]$Branch,
-        [Parameter(Mandatory)][string[]]$Apps,
-        [string]$Project = '',
-        [string[]]$Executors = @('exec-1','exec-2')   # executor slot names the planner assigns to
-    )
-    $appList = ($Apps | ForEach-Object { "- ``$_``" }) -join "`n"
-    # Per-executor assignment table the planner fills in. Each executor has its
-    # own folder under .plan/ for detailed task breakdowns.
-    $execLines = ($Executors | ForEach-Object { "- **``$_``** — _assigned: (planner fills in)_  ·  details: ``.plan/$_/tasks.md``" }) -join "`n"
-    $execCount = @($Executors).Count
-    # Literal here-string (no interpolation) so markdown backticks stay literal;
-    # dynamic values are injected via token replacement below.
-    $tpl = @'
-# Feature: {{BRANCH}}
-
-**Project:** {{PROJECT}}  ·  **Worktrees in scope:** {{APPS}}  ·  **Created:** {{DATE}}
-
-> Single source of truth for this feature. A fresh agent session should read
-> this file first to resume with full context.
-
----
-
-<!-- ════════════════ CO-PLANNER BRIEF — your operating rules, KEEP THIS ════════════════
-     This block tells the planning agent how to behave. Unlike a throwaway brief,
-     KEEP it: a fresh planner session must read it to know the rules. Below it is
-     the living plan you maintain. -->
-
-## ▶ Co-planner operating rules (read this first, every session — do NOT delete)
-
-You are my **co-planner** for this feature, working in a wtf multi-repo workspace.
-You are not a passive plan-writer and you are **not** an implementer. Think of
-yourself as a sharp thinking partner sitting beside me:
-
-- I bring ideas, constraints, and scenarios. You **pressure-test** them: argue the
-  opposite side, surface failure modes, name the trade-offs I'm not seeing, and
-  tell me when an idea is worse than it looks. When I'm wrong, say so and why.
-- When you propose something, also give the strongest case **against** it. Hold
-  both sides until we decide together. Don't rubber-stamp.
-- Plan against MY stated constraints and scenarios — not a generic ideal. If a
-  constraint makes the clean approach impossible, say that explicitly and offer
-  the least-bad alternative.
-
-**What you may touch — hard rule.** You **READ anything** in this workspace (every
-`🌿` worktree, dependency repos, docs, configs) to understand the system. You
-**WRITE only** to `_PLAN.md` and the `.plan/` folder. You do **not** edit feature
-code, run migrations, or change anything in the repos. Implementation is the
-executors' job. If you catch yourself about to edit a repo file, stop and write
-the instruction into a plan instead.
-
-**Your executors.** This feature was created with {{EXECCOUNT}} executor(s):
-{{EXECNAMES}}. Each executor is a **root-level** agent — it sees every worktree in
-the workspace (frontend + backend at once), so it implements a whole vertical
-slice across repos coherently. **You split work by sub-feature, never by repo**,
-and give each sub-feature to one executor so two executors never edit the same
-area simultaneously.
-
-> ⚠️ The executor set can CHANGE. I may add a third executor, a researcher, or
-> drop one between sessions — and a past planner session won't know. So **never
-> assume the list above is current**: at the start of each session, list the
-> `.plan/` directory and treat **every `.plan/<name>/` subfolder as one executor
-> you must plan for**. Create a `.plan/<name>/tasks.md` for any executor folder
-> that lacks one, and update the assignment table below to match what actually
-> exists.
-
-**How you hand off work.**
-- Keep THIS file (`_PLAN.md`) as the shared source of truth: goal, research,
-  decisions, the overall plan, and the **Executor Assignments** table.
-- Put each executor's detailed, ordered tasks in `.plan/<executor>/tasks.md`. Keep
-  it self-contained so a fresh executor session can resume from that file alone.
-- Whenever you (re)assign, update the assignment table so who-owns-what is obvious.
-
-**Your working loop each session:**
-
-1. **Re-read context.** This file, then `ls .plan/` to learn the CURRENT executor
-   set, then the relevant `🌿` worktrees. Reconcile the assignment table with the
-   folders that actually exist.
-2. **Understand the goal.** If the Goal below is empty or vague, ask me — don't
-   invent scope. Explore the repos for stack, conventions, and where this touches.
-3. **Research, don't trust memory.** Web-search current docs/APIs, prior art, and
-   pitfalls; prefer primary sources; verify versions against the repo. Log sources
-   under **Research & References**.
-4. **Ideate ↔ critique with me.** Offer 2–3 approaches with pros/cons/risk/blast
-   radius, and your honest recommendation plus its weakest point. Decide together;
-   record the call and the rejected options under **Decisions**.
-5. **Decompose for parallelism.** Size sub-features so each executor owns one
-   without stepping on another; note ordering deps (e.g. backend contract before
-   frontend wiring).
-6. **Write it down.** Fill the sections below with concrete, checkable steps, and
-   write each executor's `.plan/<executor>/tasks.md`.
-
-**Quality bar:** a fresh executor session should execute its
-`.plan/<executor>/tasks.md` without asking what you meant.
-
-<!-- ════════════════ END CO-PLANNER BRIEF ════════════════ -->
-
----
-
-## 🎯 Goal
-
-_What problem does this solve? What does "done" look like? What's in / out of scope?_
-
-## 🔎 Research & References
-
-_Sources consulted (docs, prior art, issues) — one-line takeaway each._
-
--
-
-## 🧠 Decisions
-
-_The chosen approach and WHY, plus the alternatives you rejected (and why)._
-
--
-
-## 📋 Execution Plan
-
-**Worktrees in scope:**
-{{APPLIST}}
-
-### Overall steps (ordered, checkable)
-
-- [ ]
-- [ ]
-- [ ]
-
-### 👥 Executor Assignments
-
-_Who owns which sub-feature. Detailed tasks live in each executor's folder._
-
-{{EXECLINES}}
-
-## 🚧 Open Questions / Assumptions
-
-_Unresolved items. Leave a breadcrumb whenever you defer something._
-
-## 📝 Files Touched
-
-_Update as you go — helps a fresh session grasp scope fast._
-
-## 🧪 Testing & Verification
-
-_How to prove it works: manual steps, edge cases, what to check before a PR._
-
----
-
-## 🗒️ Agent Session Log
-
-_Short notes when you compact or restart a session, so context isn't lost._
-'@
-    $content = $tpl.
-        Replace('{{BRANCH}}',    $Branch).
-        Replace('{{PROJECT}}',   $Project).
-        Replace('{{APPS}}',      ($Apps -join ', ')).
-        Replace('{{DATE}}',      (Get-Date -Format 'yyyy-MM-dd HH:mm')).
-        Replace('{{APPLIST}}',   $appList).
-        Replace('{{EXECLINES}}', $execLines).
-        Replace('{{EXECNAMES}}', ($Executors -join ', ')).
-        Replace('{{EXECCOUNT}}', "$execCount")
-    Write-WtfFile -Path $Path -Content $content
-}
-
-function Write-WtfExecutorFolders {
+function Write-WtfPlanDocs {
     <#
     .SYNOPSIS
-        Under the feature's .plan/ folder, give each executor its own subfolder
-        with a tasks.md the planner fills in and the executor works from. Keeps
-        each executor's work cleanly separated and easy for the planner to track.
+        Scaffold a feature's plan docs in its .plan/ folder:
+          • RULES.md — the constitution. Read EVERY session, REWRITTEN NEVER. The
+            operating rules + the agent's mandate to push back when you over-plan.
+          • PLAN.md  — the one-screen CURRENT map. Rewritten each session:
+            architecture (locked) · now building · built · deferred · unknowns.
+            A fresh session reads RULES.md then PLAN.md to resume.
+          • CHECK.md — your personal quick-reference card. Terse, point-wise; glance
+            at it to instantly remember what to do (seam vs filling, etc.).
+          • LOG.md   — the append-only daily work log. Four lines per session
+            (built / learned / blocked / next), drafted at end of session.
+        Never clobbers an existing file (so your real content is safe to re-run).
+        RULES.md and CHECK.md are restored if missing, but never overwritten — so
+        you can tweak them and a re-run keeps your edits.
     #>
     param(
         [Parameter(Mandatory)][string]$PlanDir,
         [Parameter(Mandatory)][string]$Branch,
-        [Parameter(Mandatory)][string[]]$Executors
+        [Parameter(Mandatory)][string[]]$Apps,
+        [string]$Project = ''
     )
-    foreach ($name in $Executors) {
-        $safe = ConvertTo-WtfSafeName $name
-        $dir  = Join-Path $PlanDir $safe
-        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-        $taskFile = Join-Path $dir 'tasks.md'
-        if (Test-Path $taskFile) { continue }   # never clobber existing work
-        $body = @"
-# $name — task list
+    if (-not (Test-Path $PlanDir)) { New-Item -ItemType Directory -Path $PlanDir -Force | Out-Null }
+    $scope = if (@($Apps).Count -gt 0) { ($Apps -join ', ') } else { $Project }
+    $date  = Get-Date -Format 'yyyy-MM-dd'
 
-**Feature:** $Branch  ·  **Owner:** ``$name`` executor
+    # ── RULES.md (constitution — read every session, rewritten never) ──
+    $rulesPath = Join-Path $PlanDir 'RULES.md'
+    if (-not (Test-Path $rulesPath)) {
+        # Fully literal — no token replacement. These rules are the same for every
+        # feature; they never change per-feature, so nothing is injected.
+        $rulesContent = @'
+# Operating rules — READ FIRST, every session. Do NOT rewrite this file.
 
-> The planner writes your ordered tasks here. You are a **root-level** executor:
-> you see every worktree in this workspace, so implement your sub-feature fully
-> across repos. Read ``../_PLAN.md`` for the overall goal and decisions; this file
-> is your detailed worklist. Tick boxes as you go and leave notes so a fresh
-> session can resume from this file alone.
+You are working with me in a wtf worktree. Your job is not only to build — it's
+to hold these rules when I unconsciously break them. I fall into analysis
+paralysis: I over-plan, I gold-plate, I ask "can it be better?" forever and ship
+late. When you see me doing it, **stop me and point at the rule.** Push back. Do
+not rubber-stamp my over-engineering just because I sound confident.
 
-## Assigned sub-feature
+## The ceiling
+- Time is the input, not the outcome. The appetite (how long I have) is decided
+  BEFORE we start, usually from the PM/deadline — not estimated into existence.
+- A plan is DONE — stop planning, start building — the moment these three exist:
+  (1) architecture in one paragraph, (2) the first slice, (3) the deferred list.
+  If I keep planning past that point, tell me I have all three and should build.
 
-_(planner fills in: what slice of the feature you own, and why it's independent)_
+## Planning effort scales with novelty
+- Known/done-before work → almost no planning, go straight to thin slices.
+- Novel/risky work → plan the seams, spike the scary part, then build.
+- Trivial (typo, flag, 10-min change) → just do it, no ceremony.
 
-## Tasks (ordered, checkable)
+## Strong seams, dumb fillings
+- Spend the architecture budget ONLY on decisions that are expensive to reverse:
+  data model, API contracts, module boundaries. Get those roughly right.
+- Behind a clean boundary, write the implementation DUMB — hardcode, one function,
+  no patterns, no speculative flexibility. It's cheap to rewrite later with real
+  information. If I start polishing internals before the slice works, stop me.
+
+## The first slice must run THROUGH the risk
+- The first slice isn't the smallest possible code — it's the smallest thing that
+  proves the risky/uncertain part works AND a user can touch it. Make it go
+  through the scary part (the AI call, the integration, the unknown), not around.
+
+## Resolve unknowns by building, not by thinking
+- We expect the plan to be partly wrong. That's fine — building reveals what
+  planning can't. Don't try to plan away every unknown; ship the slice and learn.
+
+## Mid-build changes — the three filters
+When I want to change the plan mid-build, run it through these before agreeing:
+1. **Building or imagining?** Did I LEARN this from the code (→ legitimate, may
+   pivot), or did I just THINK of it / "wouldn't it be nice" (→ Deferred list,
+   keep going)? Most shiny mid-build ideas are imagination. Be skeptical.
+2. **Seam or filling?** Seam change (load-bearing, costly to retrofit) → worth
+   stopping to replan. Filling change (behind an existing boundary) → just change
+   it, no ceremony, keep moving.
+3. **Fits the ceiling?** Yes → pivot, update the Architecture paragraph (allowed
+   when EVIDENCE — not daydreams — shows it's wrong), keep building. No → I must
+   surface it to my PM with the evidence BEFORE silently overrunning the deadline.
+- "Architecture (locked)" means: don't reopen it because I IMAGINED something
+  nicer. It DOES get updated when building proves it wrong. Lock against
+  daydreams, not against discovery.
+
+## Shipping
+- A messy-but-working shipped slice beats a perfect unshipped system. Refinements
+  happen AFTER it works, only if time permits, else we ship as-is.
+- The discomfort I feel reaching for "but can it be better first?" is the skill
+  I'm building. When you see it, name it, and tell me to ship anyway.
+'@
+        Write-WtfFile -Path $rulesPath -Content $rulesContent
+    }
+
+    # ── CHECK.md (my personal quick-glance card — point-wise) ─────────
+    $checkPath = Join-Path $PlanDir 'CHECK.md'
+    if (-not (Test-Path $checkPath)) {
+        $checkContent = @'
+# ⚡ Quick check — read this when my mind starts spiralling
+
+**Before I start**
+- [ ] What's my deadline? That's the ceiling. Write it down.
+- [ ] Do I have: architecture (1 paragraph) + first slice + defer list? → then STOP planning, BUILD.
+
+**While building**
+- New idea pops up → ask: did I LEARN it (building) or THINK it (imagining)?
+  - Learned it → maybe act on it (next check).
+  - Imagined it → **Deferred list. Keep building.**
+- Is the change a SEAM or a FILLING?
+  - **Seam** (data model, API contract, boundary — costly to undo) → worth STOPPING to replan.
+  - **Filling** (code behind a boundary) → just change it, no ceremony, keep going.
+- Does the change still fit the ceiling?
+  - Yes → pivot, update Architecture paragraph, build on.
+  - No → tell my PM with evidence BEFORE I silently overrun. Don't absorb it quietly.
+
+**Architecture budget**
+- Strong SEAMS, dumb FILLINGS. Polish internals later, never before the slice works.
+- "Locked" = don't reopen for daydreams. DO reopen when building proves it wrong.
+
+**First slice**
+- Must run THROUGH the risky part (AI call / integration / unknown), not around it.
+- Smallest thing that proves the risk works AND a user can touch — not smallest code.
+
+**When I catch myself asking "can it be better?"**
+- That question has no bottom. Replace it with: "do I have architecture + slice + defer list?"
+- If yes → I'm done. **SHIP.** A messy working thing beats a perfect unshipped one.
+- The discomfort of shipping imperfect IS the skill. Ship anyway.
+
+**End of session**
+- [ ] Rewrite PLAN.md to NOW (delete stale lines).
+- [ ] 4-line LOG.md entry (built / learned / blocked / next).
+- [ ] Obsidian: over-built / surprised / next-time (by hand, 3 lines).
+'@
+        Write-WtfFile -Path $checkPath -Content $checkContent
+    }
+
+    # ── PLAN.md ───────────────────────────────────────────────────────
+    $planPath = Join-Path $PlanDir 'PLAN.md'
+    if (-not (Test-Path $planPath)) {
+        # Literal here-string (no interpolation) so markdown backticks/brackets stay
+        # literal; the few dynamic values are injected by token replacement below.
+        $planTpl = @'
+# {{BRANCH}}
+
+**Project:** {{PROJECT}}  ·  **In scope:** {{SCOPE}}  ·  **Started:** {{DATE}}
+
+> Operating rules live in `RULES.md` (read it first, every session). My personal
+> quick-check is in `CHECK.md`. THIS file is the CURRENT map — nothing else.
+> Keep it to one screen. REWRITE it to reflect NOW at the end of every session;
+> delete stale lines, don't append history (history → Obsidian). A fresh agent
+> session should resume from RULES.md + this file ALONE.
+>
+> Stop planning the moment these three exist: the architecture paragraph, the
+> first slice, and the deferred list. Then build.
+
+## 🏛️ Architecture (locked)
+
+_One paragraph: the decided shape. Don't reopen it for daydreams; DO update it
+when building proves it wrong. Strong seams, dumb fillings._
+
+## 🔨 Now building
+
+_The current slice — the smallest real thing this round ships. Must run THROUGH
+the risky part, not around it. Concrete, fits the time you have._
 
 - [ ]
 - [ ]
-- [ ]
 
-## Notes / handoff
+## ✅ Built
 
-_Decisions, blockers, and breadcrumbs for the next session._
-"@
-        Write-WtfFile -Path $taskFile -Content $body
+_Done + verified slices. One line each._
+
+## 🧊 Deferred (not now)
+
+_Real ideas you are deliberately NOT building yet, each with the trigger that
+would pull it back in. Imagined "wouldn't it be nice" ideas go HERE, not into the
+slice. This list is what keeps the slice small._
+
+- _example_ — build when _<condition>_
+
+## ❓ Open unknowns
+
+_Things you resolve by BUILDING, not by planning. Delete each once answered._
+
+-
+'@
+        $planContent = $planTpl.
+            Replace('{{BRANCH}}',  $Branch).
+            Replace('{{PROJECT}}', $Project).
+            Replace('{{SCOPE}}',   $scope).
+            Replace('{{DATE}}',    $date)
+        Write-WtfFile -Path $planPath -Content $planContent
+    }
+
+    # ── LOG.md ────────────────────────────────────────────────────────
+    $logPath = Join-Path $PlanDir 'LOG.md'
+    if (-not (Test-Path $logPath)) {
+        $logTpl = @'
+# Work log — {{BRANCH}}
+
+> Append-only. One entry per work session (4 lines): what you built, what you
+> learned, what's blocked, what's next. Ask your session to draft it at the end:
+> "summarize today in 4 lines for my log: built, learned, blocked, next."
+> This is project FACTS only — your personal growth/reflection goes in Obsidian.
+
+---
+
+## {{DATE}}
+- **Built:**
+- **Learned:**
+- **Blocked:** nothing
+- **Next:**
+'@
+        $logContent = $logTpl.
+            Replace('{{BRANCH}}', $Branch).
+            Replace('{{DATE}}',   $date)
+        Write-WtfFile -Path $logPath -Content $logContent
     }
 }
 
@@ -1582,7 +1597,7 @@ function Invoke-WtfWt {
 function _wtf_slot_launch_cmd {
     <#
     .SYNOPSIS
-        Build the shell command a slot's tab/pane runs. If the slot has a saved
+        Build the shell command a slot's tab runs. If the slot has a saved
         command (a CLI resume line with the session id baked in), we hand it to
         pwsh with -NoExit so the tab stays open and YOU answer whatever the CLI
         prompts next — wtf never scripts past launching it. Empty command =>
@@ -1615,74 +1630,36 @@ function _wtf_slot_launch_cmd {
 function Invoke-WtfLaunchAgents {
     <#
     .SYNOPSIS
-        Open the Agent window from the feature's SLOTS. Every agentic terminal
-        roots at the feature dir (root-level agents see all worktrees at once).
-        Hardcoded layout:
-          • executor slots (root-exec / freeform) → ONE shared tab, side-by-side
-            panes (slot 1 left, slot 2 right, …).
-          • every other role (planner / researcher / custom) → its own tab.
-        Each slot auto-runs its saved command (resume line w/ session id) verbatim;
-        a slot with no command just opens its tab/pane at root for you to start.
+        Open the Agent window from the feature's terminals. Every terminal is its
+        OWN tab (no panes, no grouping), rooted at the feature dir so a root-level
+        agent sees all worktrees at once. Each tab is colored from its name's
+        stable palette slot. A terminal with a saved command auto-runs it (resume
+        line w/ session id) verbatim; a blank one just opens its tab for you to
+        start the CLI yourself.
     #>
     param(
         [Parameter(Mandatory)][string]$WindowName,
-        [Parameter(Mandatory)]$Slots,            # array of slot hashtables
+        [Parameter(Mandatory)]$Slots,            # array of terminal hashtables
         [Parameter(Mandatory)][string]$FeatureDir
     )
     $list = @($Slots)
     if ($list.Count -eq 0) { return }
 
-    # Order: planners/other roles in declared order, but keep executor panes
-    # contiguous so they land in one tab. We emit non-pane slots as tabs and the
-    # whole executor group as a single tab of panes, preserving overall order by
-    # walking the list and grouping consecutive pane-exec slots.
     $argv  = @('-w', $WindowName)
     $first = $true
-    $i = 0
-    while ($i -lt $list.Count) {
-        $slot = $list[$i]
-        $info = Get-WtfRoleInfo $slot.role
+    foreach ($slot in $list) {
         $title = Get-WtfSlotTitle $slot
+        $color = Get-WtfTermColor $slot.name
         $runv  = _wtf_slot_launch_cmd $slot -WorkingDir $FeatureDir
-
-        if ($info.Layout -eq $script:WtfPaneLayout) {
-            # Collect this run of consecutive executor slots into one tab of panes.
-            $group = @()
-            while ($i -lt $list.Count -and (Get-WtfRoleInfo $list[$i].role).Layout -eq $script:WtfPaneLayout) {
-                $group += $list[$i]; $i++
-            }
-            for ($g = 0; $g -lt $group.Count; $g++) {
-                $gs    = $group[$g]
-                $gt    = Get-WtfSlotTitle $gs
-                $grun  = _wtf_slot_launch_cmd $gs -WorkingDir $FeatureDir
-                # NOTE: build $seg as [array]@(...) — a bare @('new-tab') returned
-                # from `if` unwraps to a scalar string, and a later `$seg += @(...)`
-                # would then STRING-concat instead of array-append, fusing tokens.
-                $seg = [array]@()
-                if ($g -eq 0) {
-                    if (-not $first) { $seg += ';' }
-                    $seg += @('new-tab','-d', $FeatureDir, '--title', $gt, '--tabColor', (Get-WtfRoleInfo $gs.role).Color)
-                    $first = $false
-                } else {
-                    # wt's -V splits VERTICALLY into a left/right pair (side by
-                    # side); -H would stack them top/bottom. We want exec-1 left,
-                    # exec-2 right, so use -V.
-                    $seg += @(';','split-pane','-V','-d', $FeatureDir, '--title', $gt, '--tabColor', (Get-WtfRoleInfo $gs.role).Color)
-                }
-                if ($grun) { $seg += $grun }
-                $argv += $seg
-            }
-            continue
-        }
-
-        # Own tab for planner / researcher / custom.
+        # NOTE: build $seg as [array]@(...) — a bare @('new-tab') returned from an
+        # `if` unwraps to a scalar string, and a later `$seg += @(...)` would then
+        # STRING-concat instead of array-append, fusing tokens.
         $seg = [array]@()
         if (-not $first) { $seg += ';' }
-        $seg += @('new-tab','-d', $FeatureDir, '--title', $title, '--tabColor', $info.Color)
+        $seg += @('new-tab','-d', $FeatureDir, '--title', $title, '--tabColor', $color)
         if ($runv) { $seg += $runv }
         $argv += $seg
         $first = $false
-        $i++
     }
     Invoke-WtfWt -Argv $argv
 }
@@ -1991,16 +1968,6 @@ function Invoke-WtfCreate {
     $Branch = Select-WtfBranch -Provided $Branch -SourceRepos @($srcRepos)
     if (-not $Branch) { return }
 
-    # ── How many executors? (dynamic — scale to the task size) ─────────
-    # One co-planner is always added on top. Bigger feature → more executors.
-    $execCount = $script:WtfDefaultExecCount
-    if (-not $DryRun) {
-        $ec = Read-WtfText -Prompt "How many executors for this feature?" -Default "$($script:WtfDefaultExecCount)" `
-                -Hint "scale to task size; a planner is added on top" `
-                -Validator { param($v) if ($v -match '^\d+$' -and [int]$v -ge 0 -and [int]$v -le 8) { $null } else { "Enter a number 0–8." } }
-        if ($null -ne $ec) { $execCount = [int]$ec }
-    }
-
     $featureDir  = Get-WtfFeatureDir    $config $Context $projectName $Branch
     $workspaceFp = Get-WtfWorkspacePath $config $Context $projectName $Branch
 
@@ -2018,7 +1985,7 @@ function Invoke-WtfCreate {
     Write-WtfInfo "Worktree:   $($wtNames -join ', ')"
     if ($depList.Count -gt 0) { Write-WtfInfo "Deps (ws):  $((@($depList | ForEach-Object { $_.Name })) -join ', ')" }
     Write-WtfInfo "Path:       $featureDir"
-    Write-WtfInfo "Agents:     1 planner + $execCount executor$(if ($execCount -ne 1){'s'})"
+    Write-WtfInfo "Agents:     1 terminal (alpha) — add more in ``wtf edit``"
     if ($DryRun) { Write-WtfWarn "DRY RUN — nothing will be written."; return }
     if (-not (Read-WtfConfirm "Proceed?" $true)) { Write-WtfWarn "Cancelled."; return }
 
@@ -2078,36 +2045,22 @@ function Invoke-WtfCreate {
     # Source main-checkouts of the branched repos — hidden as SCM phantoms.
     $ignoreRepos = foreach ($short in $wtNames) { Join-Path $mainDir $worktreeMap[$short] }
 
-    # ── Executor roster for the plan (NOT slots) ─────────────────────
-    # create does NOT create agent slots (we never store empty ones). It only
-    # uses the chosen executor count to scaffold the plan's assignment table and
-    # the per-executor .plan/ folders, so the planner knows how many executors it
-    # has. Real slots are born later in `wtf edit` when you paste resume commands.
-    $execNames = @(for ($n = 1; $n -le $execCount; $n++) { "exec-$n" })
-
     # ── Artifacts ─────────────────────────────────────────────────────
     Write-WtfHeader "Artifacts"
-    # Both mono and multi use a .plan/ FOLDER (so the co-planner + per-executor
-    # subfolders model works the same everywhere). For MONO the .plan/ lives
-    # INSIDE the repo worktree (agent opens the repo root and sees plan+code
-    # together) and is git-excluded locally so it's never committed. For MULTI it
-    # lives at the feature root (the workspace surfaces it as the 📋 plan folder).
-    if ($isMono) {
-        $planDir = Join-Path $featureDir '.plan'   # inside the single repo
-    } else {
-        $planDir = Join-Path $featureDir '.plan'   # at the feature root
-    }
+    # Both mono and multi use a .plan/ FOLDER holding: RULES.md (constitution,
+    # never rewritten), CHECK.md (my quick-glance card), PLAN.md (the one-screen
+    # current map, rewritten each session), and LOG.md (the append-only daily work
+    # log). For MONO the .plan/ lives INSIDE the repo worktree (agent opens the
+    # repo root and sees plan+code together) and is git-excluded locally
+    # so it's never committed. For MULTI it lives at the feature root (the
+    # workspace surfaces it as the 📋 plan folder).
+    $planDir = Join-Path $featureDir '.plan'
     New-Item -ItemType Directory -Path $planDir -Force | Out-Null
-    $planFile = Join-Path $planDir '_PLAN.md'
-    Write-WtfPlan -Path $planFile -Branch $Branch -Apps $wtNames -Project $projectName -Executors $execNames
-    if ($execNames.Count -gt 0) {
-        Write-WtfExecutorFolders -PlanDir $planDir -Branch $Branch -Executors $execNames
-        Write-WtfOk "executor folders: $($execNames -join ', ')"
-    }
-    Write-WtfOk "_PLAN.md scaffolded in .plan/"
+    Write-WtfPlanDocs -PlanDir $planDir -Branch $Branch -Apps $wtNames -Project $projectName
+    Write-WtfOk "RULES.md · CHECK.md · PLAN.md · LOG.md scaffolded in .plan/"
 
     # Mono: the .plan/ folder lives inside the repo. Exclude it locally so nothing
-    # in it can ever be staged/committed (same idea we used for _PLAN.md before).
+    # in it can ever be staged/committed.
     # (.wtf-meta.json is a sidecar OUTSIDE the repo, so it needs no exclusion and
     # survives any git clean/checkout.)
     if ($isMono) {
@@ -2127,20 +2080,13 @@ function Invoke-WtfCreate {
     foreach ($short in $wtNames) { $appPaths[$short] = $worktreeMap[$short] }
     $metaDeps = foreach ($d in $depList) { @{ name = $d.Name; path = $d.RelPath } }
     $metaApps = if ($isMono) { @() } else { @($wtNames) }
-    # Create empty slots (planner + N executors with no commands) so blank
-    # terminals open on first `wtf open`. You paste session IDs into them,
-    # then `wtf edit` saves them. We remember the chosen executor count for
-    # `wtf edit`'s walk-through suggestions.
-    $initialSlots = @(
-        New-WtfSlot -Role 'planner' -Name 'plan' -Command ''
-    )
-    for ($n = 1; $n -le $execCount; $n++) {
-        $initialSlots += New-WtfSlot -Role 'root-exec' -Name "exec-$n" -Command ''
-    }
+    # Seed ONE blank terminal ('alpha') with no command, so a single empty tab
+    # opens on first `wtf open`. You start your CLI there, then `wtf edit` to save
+    # its resume command (and add more terminals — beta, gamma… — if you want).
+    $initialSlots = @( New-WtfSlot -Name (New-WtfNextTermName) -Command '' )
     $meta = New-WtfMeta -Context $Context -Project $projectName -Branch $Branch `
                         -Type $(if ($isMono) { 'mono' } else { 'multi' }) `
                         -Apps $metaApps -AppPaths $appPaths -Deps @($metaDeps) -Panes $Panes.IsPresent
-    $meta.execCount = $execCount
     Set-WtfMetaSlots -Meta $meta -Active $initialSlots -Archived @() | Out-Null
     Save-WtfMeta -FeatureDir $featureDir -Meta $meta
     Write-WtfOk ".wtf-meta.json saved"
@@ -2187,10 +2133,17 @@ function New-WtfWorktree {
         Write-WtfWarn "fetch failed (continuing): $($fetch.Stderr)"
     }
 
+    # --no-track on a NEW branch is critical. Creating a branch FROM a
+    # remote-tracking ref (origin/main) makes git's default branch.autoSetupMerge
+    # silently set the new branch's upstream to origin/main — so a later push goes
+    # to main, not to a branch of the same name. --no-track leaves the branch with
+    # NO upstream; the first `git push -u` (or VS Code "Publish Branch") then
+    # creates origin/<branch> correctly. The 'remote' case keeps --track on purpose:
+    # there BaseRef IS origin/<samename>, so inherited tracking is what we want.
     $gitArgs = switch ($Source.Mode) {
         'local'  { @('worktree','add', $TargetDir, $Branch) }
         'remote' { @('worktree','add','--track','-b', $Branch, $TargetDir, $Source.BaseRef) }
-        'new'    { @('worktree','add','-b', $Branch, $TargetDir, $Source.BaseRef) }
+        'new'    { @('worktree','add','--no-track','-b', $Branch, $TargetDir, $Source.BaseRef) }
     }
     $r = Invoke-WtfGit -WorkingDir $RepoDir -GitArgs $gitArgs
     if (-not $r.Ok) {
@@ -2332,15 +2285,14 @@ function Invoke-WtfAdd {
     $deps = @()
     foreach ($d in @($meta.deps)) { if ($d) { $deps += @{ name = (Get-ObjectValue $d 'name'); path = (Get-ObjectValue $d 'path') } } }
 
-    # Preserve the feature's agentic slots (active + archived) and exec count —
-    # adding a repo must not reset any of them.
+    # Preserve the feature's agent terminals (active + archived) — adding a repo
+    # must not reset them.
     $keepSlots    = @(Get-WtfSlots $meta)
     $keepArchived = @(Get-WtfArchivedSlots $meta)
     $newMeta = New-WtfMeta -Context $Context -Project $Project -Branch $Branch -Type 'multi' `
                            -Apps $newApps -AppPaths $appPaths -Deps @($deps) -Panes ([bool]$meta.panes) `
                            -Slots $keepSlots -ArchivedSlots $keepArchived
     $newMeta.createdAt = $meta.createdAt
-    if (Test-ObjectHasKey $meta 'execCount') { $newMeta.execCount = $meta.execCount }
     Save-WtfMeta -FeatureDir $featureDir -Meta $newMeta
 
     $wsPath = Get-WtfWorkspacePath $config $Context $Project $Branch
@@ -2376,97 +2328,88 @@ function Invoke-WtfAddRollback {
 function Show-WtfSlotPreview {
     <#
     .SYNOPSIS
-        One-glance summary of what `wtf open` will spawn. Each standalone role is
-        shown on its own; a run of consecutive pane-executors is bracketed as one
-        tab of panes, e.g.  🧠 plan  ·  [ 🤖 exec-1 │ 🤖 exec-2 ]  ·  🦾 free
+        One-glance summary of what `wtf open` will spawn — one tab per terminal,
+        e.g.  🤖 alpha  ·  🤖 beta  ·  🤖 gamma
     #>
     param([Parameter(Mandatory)]$Slots)
     $list = @($Slots)
     if ($list.Count -eq 0) { Write-WtfDetail "(no agent terminals configured yet — run ``wtf edit``)"; return }
     $T = $script:T
-    $parts = @()
-    $i = 0
-    while ($i -lt $list.Count) {
-        if ((Get-WtfRoleInfo $list[$i].role).Layout -eq $script:WtfPaneLayout) {
-            $grp = @()
-            while ($i -lt $list.Count -and (Get-WtfRoleInfo $list[$i].role).Layout -eq $script:WtfPaneLayout) {
-                $grp += (Get-WtfSlotTitle $list[$i]); $i++
-            }
-            # Bracket the pane group so it reads as one tab split into panes.
-            $inner = $grp -join " $($T.Faint)│$($T.Reset) "
-            $parts += "$($T.Faint)[$($T.Reset) $inner $($T.Faint)]$($T.Reset)"
-        } else {
-            $parts += (Get-WtfSlotTitle $list[$i]); $i++
-        }
-    }
+    $parts = @($list | ForEach-Object { Get-WtfSlotTitle $_ })
     _wtf_write "  $($parts -join "   $($T.Faint)·$($T.Reset)   ")"
 }
 
-function Read-WtfSlotCommand {
+function Read-WtfInlineForm {
     <#
     .SYNOPSIS
-        Prompt for a slot's FULL launch/resume command (session id baked in).
-        Returns the typed command, or $Current (possibly '') if left blank. The
-        caller decides what a blank means (skip-this-slot when creating, keep-as-
-        is when editing) — this function never invents one.
+        A two-field inline editor for ONE terminal: Name + Command shown together,
+        edited in a single pass. ↑↓ / Tab move between the two fields; type to edit
+        the focused field (Backspace deletes); Enter commits the whole row; Esc
+        cancels (no change). Returns @{ Name; Command } or $null on cancel.
+
+        This is the "all options at once, single go" edit: you can rename and paste
+        the resume command without leaving the form or pressing Enter between them.
     #>
-    param([string]$Current = '', [string]$BlankHint = 'leave blank to skip')
+    param([string]$Name = '', [string]$Command = '')
     $T = $script:T
-    if ($Current) { Write-WtfDetail "current: $Current" }
-    Write-WtfDetail "Paste the full resume command for this CLI (session id included)."
-    Write-WtfDetail $BlankHint
-    [Console]::Out.Write("$($T.Accent)❯$($T.Reset) $($T.Bold)Command$($T.Reset) $($T.Accent)›$($T.Reset) ")
-    $line = [Console]::ReadLine()
-    if ($null -eq $line) { return $Current }
-    $line = $line.Trim()
-    if ([string]::IsNullOrWhiteSpace($line)) { return $Current }
-    return $line
-}
+    $fields = @(
+        @{ Label = 'Name'   ; Value = [string]$Name    ; Hint = 'short tab label (Greek auto-name; type to override)' },
+        @{ Label = 'Command'; Value = [string]$Command ; Hint = 'full resume command, session id included — blank = none' }
+    )
+    $fi = 0
+    $rendered = 0
+    [Console]::Out.Write($T.ShowCur)
+    try {
+        while ($true) {
+            _wtf_render_clear $rendered
+            $lines = 0
+            [Console]::Out.WriteLine("$($T.Accent)❯$($T.Reset) $($T.Bold)Edit terminal$($T.Reset)  $($T.Faint)↑↓/Tab move · Enter save · Esc cancel$($T.Reset)"); $lines++
+            for ($i = 0; $i -lt $fields.Count; $i++) {
+                $f = $fields[$i]
+                $on = ($i -eq $fi)
+                $lbl = $f.Label.PadRight(8)
+                if ($on) {
+                    $rail = "$($T.Rail)▌$($T.Reset)"
+                    # Trailing block shows where the caret sits in the focused field.
+                    [Console]::Out.WriteLine("$rail $($T.Bold)$lbl$($T.Reset) $($T.Accent)›$($T.Reset) $($f.Value)$($T.Accent)▏$($T.Reset)")
+                } else {
+                    $shown = if ([string]::IsNullOrEmpty($f.Value)) { "$($T.Faint)(empty)$($T.Reset)" } else { "$($T.Detail)$($f.Value)$($T.Reset)" }
+                    [Console]::Out.WriteLine("  $($T.Faint)$lbl$($T.Reset)   $shown")
+                }
+                $lines++
+            }
+            [Console]::Out.WriteLine("  $($T.Faint)$($fields[$fi].Hint)$($T.Reset)"); $lines++
+            $rendered = $lines
 
-function Select-WtfRole {
-    <#
-    .SYNOPSIS
-        Pick a role for a slot. Offers the known roles plus "type your own"
-        (stored as the generic 'custom' role with a name you choose).
-    .OUTPUTS
-        @{ Role; Name } or $null on cancel.
-    #>
-    param([string]$DefaultName = '')
-    $TYPE = '⌨  type my own…'
-    $opts  = @()
-    $descs = @()
-    $keys  = @()
-    foreach ($k in $script:WtfRoles.Keys) {
-        if ($k -eq 'custom') { continue }    # custom is the "type your own" path
-        $info = $script:WtfRoles[$k]
-        $opts  += "$($info.Glyph)  $($info.Label)"
-        $descs += $(switch ($k) {
-            'planner'    { 'plans the feature, assigns work to executors' }
-            'root-exec'  { 'root-level executor — shares the pane tab' }
-            'freeform'   { 'free-scope executor — own tab' }
-            'researcher' { 'research / critic — own tab' }
-            default      { '' }
-        })
-        $keys += $k
+            $key = [Console]::ReadKey($true)
+            switch ($key.Key) {
+                'UpArrow'   { $fi = ($fi - 1 + $fields.Count) % $fields.Count; continue }
+                'DownArrow' { $fi = ($fi + 1) % $fields.Count; continue }
+                'Tab'       { $fi = ($fi + 1) % $fields.Count; continue }
+                'Enter' {
+                    _wtf_render_clear $rendered
+                    $nm = $fields[0].Value.Trim()
+                    $cm = $fields[1].Value.Trim()
+                    return @{ Name = $nm; Command = $cm }
+                }
+                'Escape' {
+                    _wtf_render_clear $rendered
+                    return $null
+                }
+                'Backspace' {
+                    $v = $fields[$fi].Value
+                    if ($v.Length -gt 0) { $fields[$fi].Value = $v.Substring(0, $v.Length - 1) }
+                    continue
+                }
+            }
+            # Printable character → append to the focused field.
+            $ch = $key.KeyChar
+            if ($ch -and [int]$ch -ge 32) { $fields[$fi].Value += $ch }
+        }
     }
-    $opts += $TYPE; $descs += 'any other role — own tab'; $keys += 'custom'
-
-    $pick = Read-WtfChoice -Prompt "What is this terminal?" -Options $opts -Descriptions $descs
-    if (-not $pick) { return $null }
-    $idx = [Array]::IndexOf($opts, $pick)
-    $role = $keys[$idx]
-
-    # Default name per role (so the common path is mostly Enter).
-    $suggest = switch ($role) {
-        'planner'    { 'plan' }
-        'root-exec'  { if ($DefaultName) { $DefaultName } else { 'exec' } }
-        'freeform'   { if ($DefaultName) { $DefaultName } else { 'exec' } }
-        'researcher' { 'research' }
-        default      { if ($DefaultName) { $DefaultName } else { 'agent' } }
+    finally {
+        [Console]::Out.Write($T.HideCur)
     }
-    $name = Read-WtfText -Prompt "Name for this terminal" -Default $suggest -Hint "short label shown on the tab"
-    if (-not $name) { return $null }
-    return @{ Role = $role; Name = $name }
 }
 
 function _wtf_now_iso { return (Get-Date -Format o) }
@@ -2482,17 +2425,19 @@ function _wtf_truncate {
 function Invoke-WtfSlotBoard {
     <#
     .SYNOPSIS
-        Live, navigable "slot board" for a feature's agent terminals. One screen
-        that redraws in place: a list of terminals you operate with the keyboard.
+        Live, navigable board for a feature's agent terminals. One screen that
+        redraws in place: a list of terminals you operate with the keyboard.
 
-          ↑↓  move cursor        enter  edit the row
-          a   add a terminal     x      archive the row (kept for `wtf sessions`)
+          ↑↓  move cursor        enter  edit the row (name + command, one pass)
+          a   add a terminal     x      archive / remove the row
           r   restore archived   s      save & exit       esc  cancel
 
-        Rows whose role shares the pane tab are bracketed so it's clear they live
-        together as side-by-side panes. A brand-new feature pre-seeds suggested
-        rows (planner + N executors) as "needs command" placeholders; saving drops
-        any placeholder you never gave a command. Only real sessions are stored.
+        Terminals have no roles — each is just a named tab that runs its command.
+        New terminals are auto-named from the Greek pool (alpha, beta, …); the
+        lowest free name is reused after you remove one. `x` on a row WITH a saved
+        command archives it (kept for `wtf sessions`); `x` on a blank row just
+        removes it. Saving keeps every row that has a name (blank-command rows are
+        kept too — they open as empty tabs you start yourself).
 
         Returns @{ Active = <slots>; Archived = <slots> } or $null on cancel.
     #>
@@ -2501,28 +2446,21 @@ function Invoke-WtfSlotBoard {
         [Parameter(Mandatory)][string]$Project,
         [Parameter(Mandatory)][string]$Branch,
         [Parameter(Mandatory)]$ExistingSlots,
-        $ArchivedSlots = @(),
-        [int]$SuggestExecutors = -1
+        $ArchivedSlots = @()
     )
     $T = $script:T
 
-    # Working rows: each @{ role; name; command }. Empty command = placeholder.
+    # Working rows: each @{ name; command }.
     $rows = @()
-    foreach ($s in @($ExistingSlots)) { $rows += @{ role = $s.role; name = $s.name; command = [string]$s.command } }
+    foreach ($s in @($ExistingSlots)) { $rows += @{ name = [string]$s.name; command = [string]$s.command } }
     $archived = @()
-    foreach ($s in @($ArchivedSlots)) { $archived += @{ role = $s.role; name = $s.name; command = [string]$s.command; archivedAt = [string]$s.archivedAt } }
+    foreach ($s in @($ArchivedSlots)) { $archived += @{ name = [string]$s.name; command = [string]$s.command; archivedAt = [string]$s.archivedAt } }
 
-    # Fresh feature → pre-seed suggested placeholders so you just fill commands.
-    $firstTime = ($rows.Count -eq 0)
-    if ($firstTime) {
-        foreach ($s in @(New-WtfSuggestedSlots -Executors $SuggestExecutors)) {
-            $rows += @{ role = $s.role; name = $s.name; command = '' }
-        }
-    }
+    $namesOf = { @($rows | ForEach-Object { $_.name }) + @($archived | ForEach-Object { $_.name }) }
 
     $cursor = 0
     $rendered = 0
-    $msg = if ($firstTime) { "First-time setup — press enter on a row to paste its resume command." } else { '' }
+    $msg = ''
 
     $title = "Agent terminals — $Context/$Project · $Branch"
     $width = 72
@@ -2541,31 +2479,22 @@ function Invoke-WtfSlotBoard {
                 [Console]::Out.WriteLine("$($T.Detail)    (no terminals — press $($T.Bold)a$($T.Reset)$($T.Detail) to add one)$($T.Reset)"); $lines++
             }
             for ($i = 0; $i -lt $rows.Count; $i++) {
-                $r    = $rows[$i]
-                $info = Get-WtfRoleInfo $r.role
-                $isPane = ($info.Layout -eq $script:WtfPaneLayout)
-                # Bracket markers tie consecutive pane rows together visually.
-                $prevPane = ($i -gt 0) -and ((Get-WtfRoleInfo $rows[$i-1].role).Layout -eq $script:WtfPaneLayout)
-                $nextPane = ($i -lt $rows.Count-1) -and ((Get-WtfRoleInfo $rows[$i+1].role).Layout -eq $script:WtfPaneLayout)
-                $brace = if ($isPane) {
-                    if (-not $prevPane -and $nextPane) { '┌' } elseif ($prevPane -and $nextPane) { '│' } elseif ($prevPane -and -not $nextPane) { '└' } else { ' ' }
-                } else { ' ' }
-
+                $r      = $rows[$i]
                 $title2 = Get-WtfSlotTitle $r
-                $cmdTxt = if ([string]::IsNullOrWhiteSpace($r.command)) { "$($T.Warn)needs command$($T.Reset)" } else { "$($T.Detail)$(_wtf_truncate $r.command 40)$($T.Reset)" }
+                $cmdTxt = if ([string]::IsNullOrWhiteSpace($r.command)) { "$($T.Warn)no command (opens empty)$($T.Reset)" } else { "$($T.Detail)$(_wtf_truncate $r.command 40)$($T.Reset)" }
                 $active = ($i -eq $cursor)
                 if ($active) {
                     $rail = "$($T.Rail)▌$($T.Reset)"
-                    [Console]::Out.WriteLine("$rail $($T.Faint)$brace$($T.Reset) $($T.SelBg)$($T.Bold)$($title2.PadRight(16))$($T.Reset)$($T.SelBg) $cmdTxt$($T.Reset)")
+                    [Console]::Out.WriteLine("$rail $($T.SelBg)$($T.Bold)$($title2.PadRight(16))$($T.Reset)$($T.SelBg) $cmdTxt$($T.Reset)")
                 } else {
-                    [Console]::Out.WriteLine("  $($T.Faint)$brace$($T.Reset) $($title2.PadRight(16)) $cmdTxt")
+                    [Console]::Out.WriteLine("  $($title2.PadRight(16)) $cmdTxt")
                 }
                 $lines++
             }
 
             [Console]::Out.WriteLine("$($T.Faint)  $bar$($T.Reset)"); $lines++
             $archNote = if ($archived.Count -gt 0) { "   $($T.Faint)·  r restore ($($archived.Count) archived)$($T.Reset)" } else { '' }
-            [Console]::Out.WriteLine("$($T.Detail)  ↑↓ move · enter edit · a add · x archive$archNote$($T.Reset)"); $lines++
+            [Console]::Out.WriteLine("$($T.Detail)  ↑↓ move · enter edit · a add · x archive/remove$archNote$($T.Reset)"); $lines++
             [Console]::Out.WriteLine("$($T.Detail)  s save · esc cancel$($T.Reset)"); $lines++
             if ($msg) { [Console]::Out.WriteLine("$($T.Accent)  $msg$($T.Reset)"); $lines++; $msg = '' }
             $rendered = $lines
@@ -2578,9 +2507,7 @@ function Invoke-WtfSlotBoard {
                 'End'       { if ($rows.Count) { $cursor = $rows.Count - 1 } }
                 'Enter' {
                     if ($rows.Count -eq 0) { continue }
-                    [Console]::Out.Write($T.ShowCur)
                     $res = _wtf_board_edit_row $rows[$cursor]
-                    [Console]::Out.Write($T.HideCur)
                     if ($res) { $rows[$cursor] = $res }
                 }
                 'Escape' {
@@ -2591,12 +2518,11 @@ function Invoke-WtfSlotBoard {
                 default {
                     switch ("$($key.KeyChar)".ToLower()) {
                         'a' {
-                            [Console]::Out.Write($T.ShowCur)
-                            $new = _wtf_board_edit_row @{ role=''; name=''; command='' }
-                            [Console]::Out.Write($T.HideCur)
+                            # Auto-name from the first free Greek name, then open the
+                            # inline form so you can rename / paste a command in one go.
+                            $auto = New-WtfNextTermName -ExistingNames (& $namesOf)
+                            $new = _wtf_board_edit_row @{ name=$auto; command='' }
                             if ($new) {
-                                # Insert just after the cursor. Guard the slice ends
-                                # so a boundary insert never produces a reversed range.
                                 $insert = if ($rows.Count) { $cursor + 1 } else { 0 }
                                 $before = if ($insert -gt 0)            { @($rows[0..($insert-1)]) } else { @() }
                                 $after  = if ($insert -le $rows.Count-1) { @($rows[$insert..($rows.Count-1)]) } else { @() }
@@ -2608,7 +2534,7 @@ function Invoke-WtfSlotBoard {
                             if ($rows.Count -eq 0) { continue }
                             $r = $rows[$cursor]
                             if (-not [string]::IsNullOrWhiteSpace($r.command)) {
-                                $archived = @($archived) + @{ role=$r.role; name=$r.name; command=$r.command; archivedAt=(_wtf_now_iso) }
+                                $archived = @($archived) + @{ name=$r.name; command=$r.command; archivedAt=(_wtf_now_iso) }
                                 $msg = "archived $(Get-WtfSlotTitle $r) — reopen later via ``wtf sessions``"
                             } else {
                                 $msg = "removed $(Get-WtfSlotTitle $r) (no session to archive)"
@@ -2624,19 +2550,23 @@ function Invoke-WtfSlotBoard {
                             if ($pick) {
                                 $ri = [Array]::IndexOf($labels, $pick)
                                 $rs = $archived[$ri]
-                                $rows = @($rows) + @{ role=$rs.role; name=$rs.name; command=$rs.command }
+                                $rows = @($rows) + @{ name=$rs.name; command=$rs.command }
                                 $archived = @($archived | Where-Object { $_ -ne $rs })
                                 $cursor = $rows.Count - 1
                                 $msg = "restored $(Get-WtfSlotTitle $rs)"
                             }
                         }
                         's' {
-                            # Save: keep only rows that have a real command.
-                            $final = @($rows | Where-Object { -not [string]::IsNullOrWhiteSpace($_.command) } |
-                                       ForEach-Object { New-WtfSlot -Role $_.role -Name $_.name -Command $_.command })
-                            $dropped = @($rows | Where-Object { [string]::IsNullOrWhiteSpace($_.command) }).Count
+                            # Save: keep every row that has a name. A blank name is
+                            # backfilled from the Greek pool so nothing is nameless.
+                            $seen = @()
+                            $final = @($rows | ForEach-Object {
+                                $nm = $_.name
+                                if ([string]::IsNullOrWhiteSpace($nm)) { $nm = New-WtfNextTermName -ExistingNames $seen }
+                                $seen += $nm
+                                New-WtfSlot -Name $nm -Command $_.command
+                            })
                             _wtf_render_clear $rendered
-                            if ($dropped -gt 0) { Write-WtfDetail "$dropped placeholder(s) without a command were not saved." }
                             return @{ Active = @($final); Archived = @($archived) }
                         }
                     }
@@ -2652,31 +2582,17 @@ function Invoke-WtfSlotBoard {
 function _wtf_board_edit_row {
     <#
     .SYNOPSIS
-        Inline overlay used by the board to create/edit ONE row: pick role+name,
-        then paste the command. Returns the row hashtable, or $null if cancelled
-        (and nothing should change).
+        Inline overlay used by the board to create/edit ONE terminal: name +
+        command together, in a single pass (no role step). Returns the row
+        hashtable, or $null if cancelled (and nothing should change).
     #>
     param($Row)
-    $T = $script:T
-    [Console]::Out.WriteLine()
-    $hasRole = -not [string]::IsNullOrWhiteSpace($Row.role)
-    if ($hasRole) {
-        Write-WtfDetail "Editing $(Get-WtfSlotTitle $Row) — change role/name, or keep and just update the command."
-        if (-not (Read-WtfConfirm "Change role / name?" $false)) {
-            $role = $Row.role; $name = $Row.name
-        } else {
-            $r = Select-WtfRole -DefaultName $Row.name
-            if (-not $r) { return $null }
-            $role = $r.Role; $name = $r.Name
-        }
-    } else {
-        $r = Select-WtfRole
-        if (-not $r) { return $null }
-        $role = $r.Role; $name = $r.Name
-    }
-    $blank = if ([string]::IsNullOrWhiteSpace($Row.command)) { "leave blank to skip (won't be saved)" } else { "leave blank to keep the current command" }
-    $cmd = Read-WtfSlotCommand -Current $Row.command -BlankHint $blank
-    return @{ role = $role; name = $name; command = $cmd }
+    $res = Read-WtfInlineForm -Name $Row.name -Command $Row.command
+    if ($null -eq $res) { return $null }
+    # A name is required; if you blank it out, keep the previous one (or it'll be
+    # backfilled on save). Command may be blank (opens an empty tab).
+    $name = if ([string]::IsNullOrWhiteSpace($res.Name)) { $Row.name } else { $res.Name }
+    return @{ name = $name; command = $res.Command }
 }
 
 function Invoke-WtfSlotWalkthrough {
@@ -2686,11 +2602,10 @@ function Invoke-WtfSlotWalkthrough {
         [Parameter(Mandatory)][string]$Project,
         [Parameter(Mandatory)][string]$Branch,
         [Parameter(Mandatory)]$ExistingSlots,
-        $ArchivedSlots = @(),
-        [int]$SuggestExecutors = -1
+        $ArchivedSlots = @()
     )
     return Invoke-WtfSlotBoard -Context $Context -Project $Project -Branch $Branch `
-        -ExistingSlots $ExistingSlots -ArchivedSlots $ArchivedSlots -SuggestExecutors $SuggestExecutors
+        -ExistingSlots $ExistingSlots -ArchivedSlots $ArchivedSlots
 }
 
 # ============================================================================
@@ -2729,9 +2644,8 @@ function Invoke-WtfEdit {
 
     $existing   = @(Get-WtfSlots $meta)
     $archived   = @(Get-WtfArchivedSlots $meta)
-    $suggestN   = if (Test-ObjectHasKey $meta 'execCount') { [int](Get-ObjectValue $meta 'execCount') } else { -1 }
     $res = Invoke-WtfSlotWalkthrough -Context $Context -Project $Project -Branch $Branch `
-              -ExistingSlots $existing -ArchivedSlots $archived -SuggestExecutors $suggestN
+              -ExistingSlots $existing -ArchivedSlots $archived
     if ($null -eq $res) { Write-WtfWarn "No changes saved."; return }
     $newSlots    = @($res.Active)
     $newArchived = @($res.Archived)
@@ -2739,19 +2653,14 @@ function Invoke-WtfEdit {
     Set-WtfMetaSlots -Meta $meta -Active $newSlots -Archived $newArchived | Out-Null
     Save-WtfMeta -FeatureDir $featureDir -Meta $meta
 
-    # Keep executor plan-folders in sync with the (possibly changed) executor set.
-    # Both mono and multi keep .plan/ at the feature dir (for mono that's inside
-    # the repo). New executors get a folder; removed ones are left in place so no
-    # work is ever clobbered.
+    # Make sure the plan docs exist (a feature created before this version, or one
+    # whose .plan/ was deleted, gets them now). Never clobbers existing content.
     $type = if ($meta.type) { $meta.type } elseif (@($meta.apps).Count -eq 0) { 'mono' } else { 'multi' }
-    $execNames = @(Get-WtfExecutorNames $newSlots)
-    if ($execNames.Count -gt 0) {
-        $planDir = Join-Path $featureDir '.plan'
-        if (-not (Test-Path $planDir)) { New-Item -ItemType Directory -Path $planDir -Force | Out-Null }
-        Write-WtfExecutorFolders -PlanDir $planDir -Branch $Branch -Executors $execNames
-        # Mono: make sure the in-repo .plan/ stays git-excluded.
-        if ($type -eq 'mono') { Add-WtfGitExclude -WorktreeDir $featureDir -Patterns @('/.plan/') }
-    }
+    $planDir = Join-Path $featureDir '.plan'
+    if (-not (Test-Path $planDir)) { New-Item -ItemType Directory -Path $planDir -Force | Out-Null }
+    Write-WtfPlanDocs -PlanDir $planDir -Branch $Branch -Apps @($meta.apps) -Project $Project
+    # Mono: make sure the in-repo .plan/ stays git-excluded.
+    if ($type -eq 'mono') { Add-WtfGitExclude -WorktreeDir $featureDir -Patterns @('/.plan/') }
 
     # Save and STOP — `wtf edit` never opens. Use `wtf open` to launch.
     Write-WtfHeader "Saved"
@@ -2800,16 +2709,15 @@ function Invoke-WtfLaunchOneSlot {
     .SYNOPSIS
         Open ONE slot as a new tab inside the feature's EXISTING agents window
         (wt -w <name> reuses a window if it's already open, else creates it).
-        Always a tab (not a pane) so a reopened session is clearly its own thing.
     #>
     param(
         [Parameter(Mandatory)][string]$WindowName,
         [Parameter(Mandatory)]$Slot,
         [Parameter(Mandatory)][string]$FeatureDir
     )
-    $info  = Get-WtfRoleInfo $Slot.role
     $title = Get-WtfSlotTitle $Slot
-    $argv  = @('-w', $WindowName, 'new-tab','-d', $FeatureDir, '--title', $title, '--tabColor', $info.Color)
+    $color = Get-WtfTermColor $Slot.name
+    $argv  = @('-w', $WindowName, 'new-tab','-d', $FeatureDir, '--title', $title, '--tabColor', $color)
     $run   = _wtf_slot_launch_cmd $Slot -WorkingDir $FeatureDir
     if ($run) { $argv += $run }
     Invoke-WtfWt -Argv $argv
@@ -2941,21 +2849,20 @@ function Invoke-WtfStatus {
         _wtf_write "    archived: $(@($archived | ForEach-Object { Get-WtfSlotTitle $_ }) -join '   ')"
     }
 
-    # ── Plan progress (checkbox counts across the plan tree) ───────────
+    # ── Plan progress (checkbox counts in PLAN.md) ────────────────────
     $planDir = Join-Path $sel.Dir '.plan'
     if (Test-Path $planDir) {
-        Write-WtfInfo "Plan progress:"
-        $planMd = Join-Path $planDir '_PLAN.md'
+        Write-WtfInfo "Plan:"
+        $planMd = Join-Path $planDir 'PLAN.md'
         if (Test-Path $planMd) {
             $p = Get-WtfPlanProgress $planMd
-            if ($p.Total -gt 0) { _wtf_write "    · $($T.Bold)_PLAN.md$($T.Reset)  $($p.Done)/$($p.Total) steps" }
+            $bar = if ($p.Total -gt 0) { "$($p.Done)/$($p.Total) steps in 'Now building'" } else { "$($T.Faint)no open steps$($T.Reset)" }
+            _wtf_write "    · $($T.Bold)PLAN.md$($T.Reset)  $bar"
+        } else {
+            Write-WtfDetail "  PLAN.md missing — run ``wtf edit`` to scaffold it"
         }
-        foreach ($d in (Get-ChildItem $planDir -Directory -ErrorAction SilentlyContinue)) {
-            $tasks = Join-Path $d.FullName 'tasks.md'
-            $p = Get-WtfPlanProgress $tasks
-            $bar = if ($p.Total -gt 0) { "$($p.Done)/$($p.Total) tasks" } else { "$($T.Faint)no tasks yet$($T.Reset)" }
-            _wtf_write "    · $($T.Bold)$($d.Name)$($T.Reset)  $bar"
-        }
+        $logMd = Join-Path $planDir 'LOG.md'
+        if (Test-Path $logMd) { _wtf_write "    · $($T.Bold)LOG.md$($T.Reset)  $($T.Faint)present$($T.Reset)" }
     }
 }
 
@@ -3789,9 +3696,10 @@ function wtf {
         Write-WtfDetail "  wtf config edit       (open config.json directly)"
         Write-WtfDetail ""
         Write-WtfDetail "All args are optional — omit any and you'll be prompted."
-        Write-WtfDetail "Each feature has agent terminals (a co-planner + executors). ``wtf edit`` walks you"
-        Write-WtfDetail "through them; paste each CLI's full resume command (session id included) and ``wtf open``"
-        Write-WtfDetail "re-spawns them as-is. Executors share one tab as panes; planner/researcher get own tabs."
+        Write-WtfDetail "Each feature has agent terminals — auto-named tabs (alpha, beta, …), each its own tab."
+        Write-WtfDetail "``wtf create`` starts one (alpha); add/rename more and paste each CLI's full resume command"
+        Write-WtfDetail "(session id included) in ``wtf edit``. ``wtf open`` re-spawns them as-is. Each feature also"
+        Write-WtfDetail "gets a .plan/ folder: RULES.md · CHECK.md · PLAN.md (map) · LOG.md (work log)."
         Write-WtfDetail "Single repos are auto-discovered; run ``wtf config`` to set up roots."
         return
     }

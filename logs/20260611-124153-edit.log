@@ -1,0 +1,8 @@
+[wtf edit] started 2026-06-11T12:41:53.8363346+05:30
+[12:42:05] DETAIL: Editing 🤖 executor-1 — change role/name, or keep and just update the command.
+[12:42:09] DETAIL: current: claude --resume "llm-sdk-defer-reasoning"
+[12:42:09] DETAIL: Paste the full resume command for this CLI (session id included).
+[12:42:09] DETAIL: leave blank to keep the current command
+[12:42:30] PHASE: Saved
+[12:42:30] DETAIL: `wtf open` (this feature) will launch:
+[12:42:30] DETAIL: Archived: 🦾 test, 🔬 critical, 🤖 executor-1, 🤖 executor-2  ·  reopen via `wtf sessions`

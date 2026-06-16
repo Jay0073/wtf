@@ -1,0 +1,59 @@
+[wtf doctor] started 2026-06-11T12:54:41.6826287+05:30
+[12:54:41] PHASE: Context: personal
+[12:54:41] GIT [C:\Users\jay\Documents\projects\ai-recruitment-platform\AI-Recruitment-Platform-Backend]: git worktree prune
+[12:54:41] GIT exit=0
+[12:54:41] GIT [C:\Users\jay\Documents\projects\ai-recruitment-platform\AI-Recruitment-Platform-FrontEnd]: git worktree prune
+[12:54:41] GIT exit=0
+[12:54:41] GIT [C:\Users\jay\Documents\projects\alerts-manager]: git worktree prune
+[12:54:41] GIT exit=0
+[12:54:41] GIT [C:\Users\jay\Documents\projects\Brim-Burger-Blast\Brim-Burger-Blast]: git worktree prune
+[12:54:41] GIT exit=0
+[12:54:41] GIT [C:\Users\jay\Documents\projects\brim-demo]: git worktree prune
+[12:54:41] GIT exit=0
+[12:54:41] GIT [C:\Users\jay\Documents\projects\browser-agent]: git worktree prune
+[12:54:41] GIT exit=0
+[12:54:41] GIT [C:\Users\jay\Documents\projects\browser-use]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\citysense]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\my-portfolio]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\omni_browser]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\pigeon-bot-service]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\pigeon-claw]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\Pigeon-Feed]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\projects-documenter\cloned_repo]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\resume]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\second-brain]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\skyvern]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\sri-vani-school]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\projects\vortex-emulator]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] OK: pruned ghost worktree records
+[12:54:42] PHASE: Context: work
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\citysense]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\pptV2]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\workelate-auth-app]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\workelate-backend]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\workelate-hub-app]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentation]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\workelate-presentations-app]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] GIT [C:\Users\jay\Documents\workelate\main\workelate-sdk]: git worktree prune
+[12:54:42] GIT exit=0
+[12:54:42] OK: pruned ghost worktree records

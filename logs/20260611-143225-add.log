@@ -1,0 +1,26 @@
+[wtf add] started 2026-06-11T14:32:25.9769448+05:30
+[14:32:33] PHASE: Plan
+[14:32:33] INFO: Feature:  workelate · feat/ai-consumption
+[14:32:33] INFO: Adding:   workelate-admin
+[14:32:36] PHASE: Worktrees
+[14:32:36] STEP: [1/1] workelate-admin
+[14:32:36] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git worktree prune
+[14:32:36] GIT exit=0
+[14:32:36] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git show-ref --verify --quiet refs/heads/feat/ai-consumption
+[14:32:36] GIT exit=1
+[14:32:36] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git show-ref --verify --quiet refs/remotes/origin/feat/ai-consumption
+[14:32:36] GIT exit=1
+[14:32:36] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git symbolic-ref refs/remotes/origin/HEAD
+[14:32:36] GIT exit=0
+[14:32:36] GIT stdout: refs/remotes/origin/main
+[14:32:36] DETAIL: fetching origin...
+[14:32:36] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git fetch --prune origin
+[14:32:37] GIT exit=0
+[14:32:37] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git worktree add -b feat/ai-consumption C:\Users\jay\Documents\workelate\worktrees\workelate-feat-ai-consumption\workelate-admin origin/main
+[14:32:38] GIT exit=0
+[14:32:38] GIT stdout: branch 'feat/ai-consumption' set up to track 'origin/main'.
+HEAD is now at cbd5e27 Merge pull request #43 from workelate/bug/board-editor
+[14:32:38] GIT stderr: Preparing worktree (new branch 'feat/ai-consumption')
+[14:32:38] GIT [C:\Users\jay\Documents\workelate\main\workelate-admin-app]: git ls-files --others --ignored --exclude-standard --directory
+[14:32:38] GIT exit=0
+[14:32:38] OK: workspace updated (VS Code will hot-reload)

@@ -24,10 +24,19 @@
         "workelate": {
           "type": "multi",
           "apps": {
+            "admin": "workelate-admin-app",
             "auth": "workelate-auth-app",
             "backend": "workelate-backend",
+            "board": "workelate-board-app",
+            "calendar": "workelate-calendar-app",
+            "docs": "workelate-docs",
+            "form": "workelate-form-app",
+            "hub": "workelate-hub-app",
+            "mail": "workelate-mail-app",
             "presentations": "workelate-presentations-app",
-            "sdk": "workelate-sdk"
+            "sdk": "workelate-sdk",
+            "task": "workelate-task-app",
+            "xnetic": "workelate-xnetic-app"
           }
         }
       }

@@ -1,0 +1,8 @@
+[wtf open] started 2026-06-06T23:55:05.7493153+05:30
+[23:55:09] PHASE: Opening plan/cost-sprint-planning
+[23:55:09] STEP: VS Code (repo folder)
+[23:55:09] OK: code launched → sri-vani-school-plan-cost-sprint-planning
+[23:55:09] DETAIL: No agent sessions saved yet — start your sessions, then run `wtf edit` to save them so the next `wtf open` resumes as-is.
+[23:55:09] STEP: runner window
+[23:55:09] WT: wt -w wtf-runners-sri-vani-school-plan-cost-sprint-planning new-tab -d C:\Users\jay\Documents\projects\worktrees\sri-vani-school-plan-cost-sprint-planning --title "🚀 sri-vani-school [F]" --tabColor #10B981
+[23:55:09] OK: runners → wtf-runners-sri-vani-school-plan-cost-sprint-planning

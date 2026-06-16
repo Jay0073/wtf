@@ -1,0 +1,17 @@
+[wtf remove] started 2026-06-11T12:53:02.9060959+05:30
+[12:53:05] PHASE: Safety checks
+[12:53:05] STEP: backend
+[12:53:05] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend]: git status --porcelain
+[12:53:06] GIT exit=0
+[12:53:06] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\backend]: git log --oneline @{u}..HEAD
+[12:53:06] GIT exit=0
+[12:53:06] OK:   clean & pushed
+[12:53:06] STEP: presentations
+[12:53:06] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations]: git status --porcelain
+[12:53:06] GIT exit=0
+[12:53:06] GIT [C:\Users\jay\Documents\workelate\worktrees\workelate-feat-agentic-workflow-upgrade\presentations]: git log --oneline @{u}..HEAD
+[12:53:06] GIT exit=0
+[12:53:06] OK:   clean & pushed
+[12:53:06] DETAIL: Committed+pushed work is safe in git. Local-only files (copied .env, graphify-out,
+[12:53:06] DETAIL: and anything gitignored you changed here) are NOT tracked and will be gone.
+[12:53:09] WARN: Cancelled.
