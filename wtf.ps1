@@ -1423,7 +1423,10 @@ function Write-WtfPlanDocs {
     param(
         [Parameter(Mandatory)][string]$PlanDir,
         [Parameter(Mandatory)][string]$Branch,
-        [Parameter(Mandatory)][string[]]$Apps,
+        # NOT mandatory: a mono feature has no apps (@()), and a Mandatory typed
+        # array rejects an empty collection. The body already falls back to
+        # $Project for scope when Apps is empty.
+        [AllowEmptyCollection()][string[]]$Apps = @(),
         [string]$Project = ''
     )
     if (-not (Test-Path $PlanDir)) { New-Item -ItemType Directory -Path $PlanDir -Force | Out-Null }
