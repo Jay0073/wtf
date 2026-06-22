@@ -13,6 +13,13 @@
             "bot": "pigeon-bot-service",
             "claw": "pigeon-claw"
           }
+        },
+        "retailOS": {
+          "type": "multi",
+          "apps": {
+            "backend": "retailos-backend",
+            "frontends": "retailos-frontends"
+          }
         }
       }
     },

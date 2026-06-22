@@ -1019,8 +1019,18 @@ function Copy-WtfIgnoredFiles {
         $rel = $entry.Trim()
         if (-not $rel) { continue }
         $rel = $rel.TrimEnd('/')
-        $top = ($rel -split '[\\/]')[0]
-        if ($skipSet.Contains($top)) { continue }
+        
+        # Check if ANY component of the path (not just top-level) is in the skip list
+        # This catches nested node_modules (e.g., dev/node_modules), build outputs, etc.
+        $pathComponents = $rel -split '[\\/]'
+        $shouldSkip = $false
+        foreach ($component in $pathComponents) {
+            if ($skipSet.Contains($component)) {
+                $shouldSkip = $true
+                break
+            }
+        }
+        if ($shouldSkip) { continue }
 
         $src = Join-Path $Source $rel
         $dst = Join-Path $Destination $rel
@@ -1338,6 +1348,55 @@ function Write-WtfWorkspace {
 
     $ws = @{ folders = $allFolders; settings = $settings }
     Write-WtfJson -Path $WorkspacePath -Object $ws
+}
+
+function Set-WtfMonoIgnoredRepos {
+    <#
+    .SYNOPSIS
+        Hide a MONO worktree's phantom source repo in VS Code's Source Control.
+
+        A git worktree's .git is a FILE pointing back at the source repo's common
+        git dir; VS Code follows that link and surfaces the SOURCE main-checkout as
+        a second repository in the SCM panel. Multi features kill this via the
+        workspace's git.ignoredRepositories, but a mono feature opens the repo
+        folder directly (no .code-workspace), so the setting has to live in the
+        repo's own .vscode/settings.json instead.
+
+        We MERGE into any existing settings (never clobber the user's file) and
+        write absolute, forward-slashed paths — the form VS Code matches against.
+        Idempotent: re-running just ensures the entries are present.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RepoDir,
+        [Parameter(Mandatory)][string[]]$IgnoreRepos
+    )
+    $ignore = @($IgnoreRepos | Where-Object { $_ } | ForEach-Object { $_ -replace '\\','/' } | Select-Object -Unique)
+    if ($ignore.Count -eq 0) { return }
+
+    $vscodeDir   = Join-Path $RepoDir '.vscode'
+    $settingsPath = Join-Path $vscodeDir 'settings.json'
+    if (-not (Test-Path $vscodeDir)) { New-Item -ItemType Directory -Path $vscodeDir -Force | Out-Null }
+
+    # Load existing settings (tolerate a missing/blank/corrupt file).
+    $settings = $null
+    if (Test-Path $settingsPath) {
+        try { $settings = Get-Content $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop } catch { $settings = $null }
+    }
+    if (-not $settings) { $settings = [pscustomobject]@{} }
+
+    # Union with anything already ignored so we never drop a user's own entry.
+    $existing = @()
+    if (Test-ObjectHasKey $settings 'git.ignoredRepositories') {
+        $existing = @(Get-ObjectValue $settings 'git.ignoredRepositories')
+    }
+    $merged = @($existing + $ignore | Where-Object { $_ } | Select-Object -Unique)
+    $settings | Add-Member -NotePropertyName 'git.ignoredRepositories' -NotePropertyValue $merged -Force
+
+    Write-WtfJson -Path $settingsPath -Object $settings
+    # The worktree's local .vscode/settings.json is wtf bookkeeping — keep it out
+    # of the feature branch so it's never committed back to the project.
+    Add-WtfGitExclude -WorktreeDir $RepoDir -Patterns @('/.vscode/settings.json')
+    Write-WtfLog "MONO-IGNORE: $($merged -join ', ') → $settingsPath"
 }
 
 # ============================================================================
@@ -2231,48 +2290,90 @@ function Invoke-WtfAdd {
 
     $byLabel = @{}
     $labels  = foreach ($c in $cands) { $byLabel[$c.RelPath] = $c; $c.RelPath }
-    $picked  = Read-WtfMultiChoice -Prompt "Repos to add (worktree)" -Options @($labels) -Min 1
-    if (@($picked).Count -eq 0) { Write-WtfWarn "Cancelled."; return }
+    
+    # Pick repos to add as worktrees (feature branch)
+    $pickedWorktrees = Read-WtfMultiChoice -Prompt "Repos to add as worktrees (feature branch)" -Options @($labels) -Min 0
+    
+    # Identify existing dependencies by path to avoid duplicates
+    $existingDepPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($d in @($meta.deps)) { 
+        if ($d -and (Test-ObjectHasKey $d 'path')) { 
+            [void]$existingDepPaths.Add((Get-ObjectValue $d 'path'))
+        }
+    }
+    
+    # Pick remaining repos to add as dependencies (from those not picked as worktrees)
+    $remainingForDeps = @($cands | Where-Object { -not ($pickedWorktrees -contains $_.RelPath) })
+    $remainingForDeps = @($remainingForDeps | Where-Object { -not $existingDepPaths.Contains($_.RelPath) })
+    
+    $pickedDeps = @()
+    if ($remainingForDeps.Count -gt 0) {
+        $byLabelDeps = @{}
+        $labelsDeps  = foreach ($c in $remainingForDeps) { $byLabelDeps[$c.RelPath] = $c; $c.RelPath }
+        $pickedDeps  = Read-WtfMultiChoice -Prompt "Repos to add as dependencies (workspace only, main branch)" -Options @($labelsDeps.Keys) -Min 0
+    }
+    
+    if (@($pickedWorktrees).Count -eq 0 -and @($pickedDeps).Count -eq 0) { 
+        Write-WtfWarn "No repos selected."; return 
+    }
 
-    # Build short names for the additions, avoiding collisions with existing apps.
-    $addMap = New-WtfShortNameMap -Candidates @(foreach ($l in $picked) { $byLabel[$l] })
+    # Build short names for worktree additions, avoiding collisions with existing apps.
+    $addMap = if (@($pickedWorktrees).Count -gt 0) {
+        New-WtfShortNameMap -Candidates @(foreach ($l in $pickedWorktrees) { $byLabel[$l] })
+    } else {
+        @{}
+    }
     $finalAdd = [ordered]@{}
     foreach ($k in $addMap.Keys) {
         $short = $k; $i = 2
         while (($short -in @($meta.apps)) -or $finalAdd.Contains($short)) { $short = "$k$i"; $i++ }
         $finalAdd[$short] = $addMap[$k]
     }
+    
+    # Build dependency additions
+    $finalAddDeps = @()
+    foreach ($depPath in $pickedDeps) {
+        $depCand = $byLabelDeps[$depPath]
+        if ($depCand) {
+            $finalAddDeps += @{ name = $depCand.Name; path = $depPath }
+        }
+    }
 
     Write-WtfHeader "Plan"
     Write-WtfInfo "Feature:  $Project · $Branch"
-    Write-WtfInfo "Adding:   $(@($finalAdd.Keys) -join ', ')"
+    if ($finalAdd.Count -gt 0) { Write-WtfInfo "Adding as worktrees: $(@($finalAdd.Keys) -join ', ')" }
+    if ($finalAddDeps.Count -gt 0) { Write-WtfInfo "Adding as dependencies: $($(@($finalAddDeps | ForEach-Object { $_.name }) | Sort-Object -Unique) -join ', ')" }
     if ($DryRun) { Write-WtfWarn "DRY RUN."; return }
     if (-not (Read-WtfConfirm "Proceed?" $true)) { Write-WtfWarn "Cancelled."; return }
 
-    Write-WtfHeader "Worktrees"
-    $created = [System.Collections.ArrayList]::new()
-    $idx = 0
-    foreach ($short in $finalAdd.Keys) {
-        $idx++
-        $appSrc = Join-Path $mainDir $finalAdd[$short]
-        $appDst = Join-Path $featureDir $short
-        Write-WtfStep "[$idx/$($finalAdd.Count)] $short"
+    if ($finalAdd.Count -gt 0) {
+        Write-WtfHeader "Worktrees"
+        $created = [System.Collections.ArrayList]::new()
+        $idx = 0
+        foreach ($short in $finalAdd.Keys) {
+            $idx++
+            $appSrc = Join-Path $mainDir $finalAdd[$short]
+            $appDst = Join-Path $featureDir $short
+            Write-WtfStep "[$idx/$($finalAdd.Count)] $short"
 
-        if (-not (Test-WtfIsGitRepo $appSrc)) {
-            Write-WtfFail "Not a git repo: $appSrc"
-            Invoke-WtfAddRollback -Created $created
-            return
+            if (-not (Test-WtfIsGitRepo $appSrc)) {
+                Write-WtfFail "Not a git repo: $appSrc"
+                Invoke-WtfAddRollback -Created $created
+                return
+            }
+            Invoke-WtfWorktreePrune -RepoDir $appSrc
+            $src = Resolve-WtfBranchSource -RepoDir $appSrc -Branch $Branch
+            $ok = New-WtfWorktree -RepoDir $appSrc -TargetDir $appDst -Branch $Branch -Source $src
+            if (-not $ok) { Invoke-WtfAddRollback -Created $created; return }
+            [void]$created.Add(@{ App = $short; Src = $appSrc; Dst = $appDst })
+            $copied = Copy-WtfIgnoredFiles -Source $appSrc -Destination $appDst -Skip (Get-WtfCopySkip $config)
+            if ($copied.Count -gt 0) {
+                $shown = if ($copied.Count -gt 6) { ($copied[0..5] -join ', ') + " (+$($copied.Count - 6) more)" } else { $copied -join ', ' }
+                Write-WtfOk "$short — copied from main: $shown"
+            }
         }
-        Invoke-WtfWorktreePrune -RepoDir $appSrc
-        $src = Resolve-WtfBranchSource -RepoDir $appSrc -Branch $Branch
-        $ok = New-WtfWorktree -RepoDir $appSrc -TargetDir $appDst -Branch $Branch -Source $src
-        if (-not $ok) { Invoke-WtfAddRollback -Created $created; return }
-        [void]$created.Add(@{ App = $short; Src = $appSrc; Dst = $appDst })
-        $copied = Copy-WtfIgnoredFiles -Source $appSrc -Destination $appDst -Skip (Get-WtfCopySkip $config)
-        if ($copied.Count -gt 0) {
-            $shown = if ($copied.Count -gt 6) { ($copied[0..5] -join ', ') + " (+$($copied.Count - 6) more)" } else { $copied -join ', ' }
-            Write-WtfOk "$short — copied from main: $shown"
-        }
+    } else {
+        $created = [System.Collections.ArrayList]::new()
     }
 
     # Update meta (preserve appPaths + deps) and rebuild the workspace.
@@ -2282,8 +2383,11 @@ function Invoke-WtfAdd {
         $appPaths[$a] = if ($meta.appPaths -and (Test-ObjectHasKey $meta.appPaths $a)) { Get-ObjectValue $meta.appPaths $a } else { $a }
     }
     foreach ($k in $finalAdd.Keys) { $appPaths[$k] = $finalAdd[$k] }
+    
+    # Preserve existing deps and add new ones
     $deps = @()
     foreach ($d in @($meta.deps)) { if ($d) { $deps += @{ name = (Get-ObjectValue $d 'name'); path = (Get-ObjectValue $d 'path') } } }
+    foreach ($newDep in $finalAddDeps) { $deps += $newDep }
 
     # Preserve the feature's agent terminals (active + archived) — adding a repo
     # must not reset them.
@@ -2301,10 +2405,17 @@ function Invoke-WtfAdd {
     Write-WtfWorkspace -WorkspacePath $wsPath -FeatureDir $featureDir -Worktrees @($layout.Worktrees) -Deps @($layout.Deps) -IgnoreRepos @($ignoreRepos)
     Write-WtfOk "workspace updated (VS Code will hot-reload)"
 
-    Write-WtfSummary -Title "Repos added" -Lines @(
-        "$($script:T.Bold)Now in feature:$($script:T.Reset) $($newApps -join ', ')",
-        "$($script:T.Detail)Run ``wtf open`` to refresh terminals with new tabs.$($script:T.Reset)"
-    )
+    $summaryLines = @()
+    if ($newApps.Count -gt 0) {
+        $summaryLines += "$($script:T.Bold)Worktrees in feature:$($script:T.Reset) $($newApps -join ', ')"
+    }
+    if ($deps.Count -gt 0) {
+        $depNames = @($deps | ForEach-Object { $_.name } | Sort-Object -Unique)
+        $summaryLines += "$($script:T.Bold)Dependencies in workspace:$($script:T.Reset) $($depNames -join ', ')"
+    }
+    $summaryLines += "$($script:T.Detail)Run ``wtf open`` to refresh terminals with new tabs.$($script:T.Reset)"
+    
+    Write-WtfSummary -Title "Repos added" -Lines @($summaryLines)
 }
 
 function Invoke-WtfAddRollback {
@@ -2921,6 +3032,10 @@ function Invoke-WtfOpen {
     # (re)write and open it as before.
     if ($isMono) {
         $repoDir = if ($wt.Count -gt 0) { $wt[0].Dir } else { $featureDir }
+        # Hide the phantom source main-checkout in SCM (mono has no .code-workspace
+        # to carry git.ignoredRepositories, so it goes in the repo's .vscode).
+        $monoIgnore = foreach ($w in $wt) { Join-Path $layout.MainDir $w.RelPath }
+        Set-WtfMonoIgnoredRepos -RepoDir $repoDir -IgnoreRepos @($monoIgnore)
         Write-WtfStep "VS Code (repo folder)"
         Start-Process -FilePath 'code' -ArgumentList @('--', $repoDir) -ErrorAction SilentlyContinue
         Write-WtfOk "code launched → $(Split-Path $repoDir -Leaf)"
