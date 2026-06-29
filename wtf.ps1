@@ -1052,6 +1052,79 @@ function Copy-WtfIgnoredFiles {
 }
 
 # ============================================================================
+# DEPENDENCY JUNCTIONS (shared/read-along repos placed INSIDE the feature dir)
+# ============================================================================
+# A dependency repo isn't branched — but it needs to live INSIDE the feature
+# folder so (a) shared imports across repos resolve by relative path, and (b) the
+# agent sees it as part of the workspace tree. We do that with a Windows directory
+# JUNCTION pointing at the dep's MAIN checkout. Junctions need no admin rights,
+# read/write straight through to main (so it always reflects main's latest), and
+# deleting the junction NEVER touches the target's contents.
+
+function Test-WtfIsReparsePoint {
+    # True if a path is a junction/symlink (a reparse point), not a real folder.
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    return [bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
+}
+
+function New-WtfDepJunction {
+    <#
+    .SYNOPSIS
+        Create (or refresh) a directory junction at <FeatureDir>/<Name> pointing at
+        the dependency's main checkout. Returns $true on success.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$FeatureDir,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Target   # the dep's main-checkout path
+    )
+    if (-not (Test-Path -LiteralPath $Target)) {
+        Write-WtfLog "DEP-JUNCTION skip (target missing): $Target"
+        return $false
+    }
+    $link = Join-Path $FeatureDir $Name
+    if (Test-Path -LiteralPath $link) {
+        # Already there. If it's a junction, leave it; if it's a real folder, don't
+        # clobber it (safety — never delete real content).
+        if (Test-WtfIsReparsePoint $link) { return $true }
+        Write-WtfWarn "dep '$Name' already exists as a real folder — skipping junction"
+        Write-WtfLog "DEP-JUNCTION skip (real folder in the way): $link"
+        return $false
+    }
+    try {
+        New-Item -ItemType Junction -Path $link -Target $Target -ErrorAction Stop | Out-Null
+        Write-WtfLog "DEP-JUNCTION: $link → $Target"
+        return $true
+    } catch {
+        Write-WtfWarn "could not junction dep '$Name': $_"
+        Write-WtfLog "DEP-JUNCTION FAILED: $link → $Target — $_"
+        return $false
+    }
+}
+
+function Remove-WtfDepJunction {
+    <#
+    .SYNOPSIS
+        Remove a dependency junction WITHOUT touching the target's contents.
+        Refuses to delete a real (non-junction) folder — that would be the dep's
+        actual files. Safe to call on a missing path.
+    #>
+    param([Parameter(Mandatory)][string]$Link)
+    if (-not (Test-Path -LiteralPath $Link)) { return }
+    if (-not (Test-WtfIsReparsePoint $Link)) {
+        Write-WtfLog "DEP-JUNCTION remove SKIP (not a junction — real folder): $Link"
+        return
+    }
+    # [System.IO.Directory]::Delete on a junction unlinks it without recursing into
+    # the target. (Remove-Item -Recurse on a junction CAN delete target contents on
+    # some PS versions, so we use the .NET API which only removes the reparse point.)
+    try { [System.IO.Directory]::Delete($Link, $false) }
+    catch { Write-WtfLog "DEP-JUNCTION remove failed: $Link — $_" }
+}
+
+# ============================================================================
 # End of Part 1 — Part 2 will add: create, open, add, remove, list, doctor, dispatcher
 # ============================================================================
 # wtf.ps1 — Part 2: Commands & Dispatcher
@@ -1067,9 +1140,12 @@ function New-WtfMeta {
         [string]$Project,
         [string]$Branch,
         [ValidateSet('mono','multi')][string]$Type = 'multi',
-        [string[]]$Apps,
+        # Default @() and filter nulls: when omitted, a bare [string[]]$Apps is
+        # $null, and @($null) yields a one-element [null] array that corrupts the
+        # meta (mono features showed "apps": [null]).
+        [string[]]$Apps = @(),
         $AppPaths = @{},      # short -> relPath (multi only)
-        $Deps = @(),          # array of @{ name; path }  (workspace-only repos)
+        $Deps = @(),          # array of @{ name; path }  (workspace-only repos, junctioned in)
         [bool]$Panes = $false,
         $Slots = @(),         # ACTIVE agent slots (each has a real command)
         $ArchivedSlots = @()  # sessions set aside but kept for review/reopen
@@ -1080,7 +1156,7 @@ function New-WtfMeta {
         project       = $Project
         type          = $Type
         branch        = $Branch
-        apps          = @($Apps)
+        apps          = @(@($Apps) | Where-Object { $_ })
         appPaths      = $AppPaths
         deps          = @($Deps)
         panes         = $Panes
@@ -1250,7 +1326,8 @@ function Resolve-WtfFeatureLayout {
         }
         $worktrees += @{ Name = $Meta.project; RelPath = $rel; Dir = $FeatureDir }
     } else {
-        foreach ($app in @($Meta.apps)) {
+        # Filter nulls/blanks defensively — a legacy meta may carry "apps": [null].
+        foreach ($app in @(@($Meta.apps) | Where-Object { $_ })) {
             $rel = $null
             if ($Meta.appPaths -and (Test-ObjectHasKey $Meta.appPaths $app)) {
                 $rel = Get-ObjectValue $Meta.appPaths $app
@@ -1269,7 +1346,15 @@ function Resolve-WtfFeatureLayout {
         if (-not $d) { continue }
         $dname = Get-ObjectValue $d 'name'
         $dpath = Get-ObjectValue $d 'path'
-        $deps += @{ Name = $dname; RelPath = $dpath; Dir = (Join-Path $mainDir $dpath) }
+        # Dir = where the dep lives IN-TREE (the junction inside the feature dir).
+        # Source = the dep's main checkout (the junction target). Consumers that
+        # show/open the dep use Dir; junction create/repair uses Source.
+        $deps += @{
+            Name    = $dname
+            RelPath = $dpath
+            Dir     = (Join-Path $FeatureDir $dname)
+            Source  = (Join-Path $mainDir $dpath)
+        }
     }
 
     return @{ Type = $type; MainDir = $mainDir; Worktrees = $worktrees; Deps = $deps }
@@ -1340,40 +1425,83 @@ function Write-WtfWorkspace {
 
     # Each worktree is its own repo — VS Code shows them all (good: commit/push
     # per repo). But it ALSO follows a worktree's .git link and surfaces its
-    # SOURCE main-checkout as a phantom repo. Ignoring those source paths hides
-    # the phantoms while keeping the worktree repos AND the dep repos visible.
-    $settings = @{ 'window.title' = '${rootName} — wtf' }
-    $ignore = @($IgnoreRepos | Where-Object { $_ } | ForEach-Object { $_ -replace '\\','/' } | Select-Object -Unique)
+    # SOURCE main-checkout as a phantom repo. We hide those phantoms two ways:
+    #  • git.ignoredRepositories — the exact phantom roots (in every path spelling,
+    #    so VS Code's finicky matcher always finds one). NEVER a worktree's own path.
+    #  • git.openRepositoryInParentFolders:'never' — stop VS Code climbing UP out of
+    #    a folder to open a parent repo (the over-discovery that makes worktrees
+    #    "disappear" / the wrong repo show — the multi bug).
+    $settings = @{
+        'window.title'                      = '${rootName} — wtf'
+        'git.openRepositoryInParentFolders' = 'never'
+    }
+    $ignore = @()
+    foreach ($p in @($IgnoreRepos | Where-Object { $_ })) { $ignore += Resolve-WtfRepoRootForms -Path $p }
+    $ignore = @($ignore | Where-Object { $_ } | Select-Object -Unique)
     if ($ignore.Count -gt 0) { $settings['git.ignoredRepositories'] = $ignore }
 
     $ws = @{ folders = $allFolders; settings = $settings }
     Write-WtfJson -Path $WorkspacePath -Object $ws
 }
 
-function Set-WtfMonoIgnoredRepos {
+function Resolve-WtfRepoRootForms {
     <#
     .SYNOPSIS
-        Hide a MONO worktree's phantom source repo in VS Code's Source Control.
+        Every plausible spelling of a repo's root path, so VS Code's
+        git.ignoredRepositories matcher (whatever normalization it uses) finds one:
+        git's authoritative toplevel (forward + back slash) plus the resolved
+        filesystem path (forward + back slash). Returns a unique string array.
+        Used ONLY to build ignore lists — NEVER fed a worktree's own path.
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+    $forms = @()
+    $abs = $Path
+    try { $abs = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path } catch { }
+    $forms += ($abs -replace '\\','/')
+    $forms += ($abs -replace '/','\')
+    if (Test-Path $Path) {
+        # git's own absolute toplevel is exactly what VS Code's git ext compares to.
+        $g = Invoke-WtfGit -WorkingDir $Path -GitArgs @('rev-parse','--path-format=absolute','--show-toplevel')
+        if ($g.Ok -and $g.Stdout) {
+            $top = $g.Stdout.Trim()
+            $forms += ($top -replace '\\','/')
+            $forms += ($top -replace '/','\')
+        }
+    }
+    return @($forms | Where-Object { $_ } | Select-Object -Unique)
+}
 
-        A git worktree's .git is a FILE pointing back at the source repo's common
-        git dir; VS Code follows that link and surfaces the SOURCE main-checkout as
-        a second repository in the SCM panel. Multi features kill this via the
-        workspace's git.ignoredRepositories, but a mono feature opens the repo
-        folder directly (no .code-workspace), so the setting has to live in the
-        repo's own .vscode/settings.json instead.
+function Set-WtfVscodeRepoSettings {
+    <#
+    .SYNOPSIS
+        Merge git/SCM settings into a folder's .vscode/settings.json so VS Code's
+        Source Control shows ONLY the repos you want.
 
-        We MERGE into any existing settings (never clobber the user's file) and
-        write absolute, forward-slashed paths — the form VS Code matches against.
-        Idempotent: re-running just ensures the entries are present.
+        Why this is needed: a git worktree's .git is a FILE pointing back at the
+        source repo's shared common-dir, so VS Code DISCOVERS the source
+        main-checkout (and vice-versa) and shows it as an extra repo in SCM. The
+        only reliable per-folder controls are two settings, used together:
+          • git.ignoredRepositories            — hide these exact repo roots from SCM
+          • git.openRepositoryInParentFolders  — 'never' stops VS Code climbing UP
+            out of the opened folder to discover/open a parent repo (the class of
+            over-discovery that makes worktrees "disappear" / the wrong repo show)
+
+        We MERGE (never clobber the user's file), union ignore entries, and git-
+        exclude the settings file locally so it's never committed to the branch.
+        IMPORTANT: $IgnoreRepos must be PHANTOM roots only — never the path of the
+        repo we're configuring, or VS Code would hide the repo you actually want.
     #>
     param(
-        [Parameter(Mandatory)][string]$RepoDir,
-        [Parameter(Mandatory)][string[]]$IgnoreRepos
+        [Parameter(Mandatory)][string]$TargetDir,        # folder VS Code opens (gets .vscode)
+        [string[]]$IgnoreRepos = @(),                    # phantom repo roots to hide
+        [switch]$NoParentFolderRepos                      # add openRepositoryInParentFolders=never
     )
-    $ignore = @($IgnoreRepos | Where-Object { $_ } | ForEach-Object { $_ -replace '\\','/' } | Select-Object -Unique)
-    if ($ignore.Count -eq 0) { return }
+    $ignore = @()
+    foreach ($p in @($IgnoreRepos | Where-Object { $_ })) { $ignore += Resolve-WtfRepoRootForms -Path $p }
+    $ignore = @($ignore | Where-Object { $_ } | Select-Object -Unique)
+    if ($ignore.Count -eq 0 -and -not $NoParentFolderRepos) { return }
 
-    $vscodeDir   = Join-Path $RepoDir '.vscode'
+    $vscodeDir    = Join-Path $TargetDir '.vscode'
     $settingsPath = Join-Path $vscodeDir 'settings.json'
     if (-not (Test-Path $vscodeDir)) { New-Item -ItemType Directory -Path $vscodeDir -Force | Out-Null }
 
@@ -1384,19 +1512,35 @@ function Set-WtfMonoIgnoredRepos {
     }
     if (-not $settings) { $settings = [pscustomobject]@{} }
 
-    # Union with anything already ignored so we never drop a user's own entry.
-    $existing = @()
-    if (Test-ObjectHasKey $settings 'git.ignoredRepositories') {
-        $existing = @(Get-ObjectValue $settings 'git.ignoredRepositories')
+    if ($ignore.Count -gt 0) {
+        $existing = @()
+        if (Test-ObjectHasKey $settings 'git.ignoredRepositories') {
+            $existing = @(Get-ObjectValue $settings 'git.ignoredRepositories')
+        }
+        $merged = @($existing + $ignore | Where-Object { $_ } | Select-Object -Unique)
+        $settings | Add-Member -NotePropertyName 'git.ignoredRepositories' -NotePropertyValue $merged -Force
     }
-    $merged = @($existing + $ignore | Where-Object { $_ } | Select-Object -Unique)
-    $settings | Add-Member -NotePropertyName 'git.ignoredRepositories' -NotePropertyValue $merged -Force
+    if ($NoParentFolderRepos) {
+        $settings | Add-Member -NotePropertyName 'git.openRepositoryInParentFolders' -NotePropertyValue 'never' -Force
+    }
 
     Write-WtfJson -Path $settingsPath -Object $settings
-    # The worktree's local .vscode/settings.json is wtf bookkeeping — keep it out
-    # of the feature branch so it's never committed back to the project.
-    Add-WtfGitExclude -WorktreeDir $RepoDir -Patterns @('/.vscode/settings.json')
-    Write-WtfLog "MONO-IGNORE: $($merged -join ', ') → $settingsPath"
+    # Keep the .vscode/settings.json out of the branch (it's wtf bookkeeping). Only
+    # exclude when this folder is itself a git work area; harmless otherwise.
+    if (Test-Path (Join-Path $TargetDir '.git')) {
+        Add-WtfGitExclude -WorktreeDir $TargetDir -Patterns @('/.vscode/settings.json')
+    }
+    Write-WtfLog "VSCODE-SETTINGS: $TargetDir ignore=[$($ignore -join ', ')] noParent=$($NoParentFolderRepos.IsPresent)"
+}
+
+function Set-WtfMonoIgnoredRepos {
+    # Back-compat shim — delegates to the general helper with the parent-folder
+    # guard on (a worktree never wants a parent repo opened).
+    param(
+        [Parameter(Mandatory)][string]$RepoDir,
+        [Parameter(Mandatory)][string[]]$IgnoreRepos
+    )
+    Set-WtfVscodeRepoSettings -TargetDir $RepoDir -IgnoreRepos $IgnoreRepos -NoParentFolderRepos
 }
 
 # ============================================================================
@@ -2099,13 +2243,32 @@ function Invoke-WtfCreate {
         Write-WtfFile -Path $envWarnFlag -Content (Get-Date -Format o)
     }
 
+    # ── Dependency junctions ──────────────────────────────────────────
+    # Deps are read-along repos. We JUNCTION each into the feature dir so they sit
+    # beside the worktrees — shared imports resolve and the agent sees them as part
+    # of the tree. They are NOT branched (the junction points straight at main).
+    if ($depList.Count -gt 0) {
+        Write-WtfHeader "Dependencies"
+        foreach ($d in $depList) {
+            $depTarget = Join-Path $mainDir $d.RelPath
+            if (New-WtfDepJunction -FeatureDir $featureDir -Name $d.Name -Target $depTarget) {
+                Write-WtfOk "$($d.Name) — linked (junction → main)"
+            }
+        }
+    }
+
     # ── Normalized lists for workspace + terminals ────────────────────
     $wtList  = foreach ($short in $wtNames) {
         @{ Name = $short; Dir = $(if ($isMono) { $featureDir } else { Join-Path $featureDir $short }) }
     }
-    $depNorm = foreach ($d in $depList) { @{ Name = $d.Name; Dir = (Join-Path $mainDir $d.RelPath) } }
-    # Source main-checkouts of the branched repos — hidden as SCM phantoms.
-    $ignoreRepos = foreach ($short in $wtNames) { Join-Path $mainDir $worktreeMap[$short] }
+    # Deps now point at their JUNCTION inside the feature dir (not the external
+    # main path), so the workspace shows them in-tree.
+    $depNorm = foreach ($d in $depList) { @{ Name = $d.Name; Dir = (Join-Path $featureDir $d.Name) } }
+    # SCM phantoms to hide: the branched repos' source main-checkouts, AND each
+    # dep's own git repo (it's read-along — you commit to it via main, not here).
+    $ignoreRepos = @()
+    foreach ($short in $wtNames) { $ignoreRepos += Join-Path $mainDir $worktreeMap[$short] }
+    foreach ($d in $depList)     { $ignoreRepos += Join-Path $featureDir $d.Name }
 
     # ── Artifacts ─────────────────────────────────────────────────────
     Write-WtfHeader "Artifacts"
@@ -2404,7 +2567,22 @@ function Invoke-WtfAdd {
 
     $wsPath = Get-WtfWorkspacePath $config $Context $Project $Branch
     $layout = Resolve-WtfFeatureLayout -Config $config -Meta $newMeta -FeatureDir $featureDir
-    $ignoreRepos = foreach ($w in @($layout.Worktrees)) { Join-Path $layout.MainDir $w.RelPath }
+
+    # Junction any newly-added deps into the feature dir (idempotent — existing
+    # junctions are left as-is).
+    if (@($finalAddDeps).Count -gt 0) {
+        Write-WtfHeader "Dependencies"
+        foreach ($d in @($layout.Deps)) {
+            if (New-WtfDepJunction -FeatureDir $featureDir -Name $d.Name -Target $d.Source) {
+                Write-WtfOk "$($d.Name) — linked (junction → main)"
+            }
+        }
+    }
+
+    # Hide phantoms: branched repos' source main-checkouts AND each dep's git repo.
+    $ignoreRepos = @()
+    foreach ($w in @($layout.Worktrees)) { $ignoreRepos += Join-Path $layout.MainDir $w.RelPath }
+    foreach ($d in @($layout.Deps))      { $ignoreRepos += $d.Dir }
     Write-WtfWorkspace -WorkspacePath $wsPath -FeatureDir $featureDir -Worktrees @($layout.Worktrees) -Deps @($layout.Deps) -IgnoreRepos @($ignoreRepos)
     Write-WtfOk "workspace updated (VS Code will hot-reload)"
 
@@ -3035,21 +3213,52 @@ function Invoke-WtfOpen {
     # (re)write and open it as before.
     if ($isMono) {
         $repoDir = if ($wt.Count -gt 0) { $wt[0].Dir } else { $featureDir }
-        # Hide the phantom source main-checkout in SCM (mono has no .code-workspace
-        # to carry git.ignoredRepositories, so it goes in the repo's .vscode).
+        # Hide the phantom source main-checkout in SCM, and stop VS Code from
+        # climbing UP to discover a parent repo. Mono has no .code-workspace, so
+        # this lives in the worktree's own .vscode. MUST run BEFORE launching so VS
+        # Code reads it on window load.
         $monoIgnore = foreach ($w in $wt) { Join-Path $layout.MainDir $w.RelPath }
-        Set-WtfMonoIgnoredRepos -RepoDir $repoDir -IgnoreRepos @($monoIgnore)
+        Set-WtfVscodeRepoSettings -TargetDir $repoDir -IgnoreRepos @($monoIgnore) -NoParentFolderRepos
+        # Reciprocal: when YOU open the source main checkout directly (to make a
+        # quick fix / check a peer's branch), make IT show only main by hiding the
+        # sibling worktrees there too.
+        foreach ($w in $wt) {
+            $srcRepo = Join-Path $layout.MainDir $w.RelPath
+            if (Test-Path $srcRepo) { Set-WtfVscodeRepoSettings -TargetDir $srcRepo -IgnoreRepos @($w.Dir) -NoParentFolderRepos }
+        }
         Write-WtfStep "VS Code (repo folder)"
-        Start-Process -FilePath 'code' -ArgumentList @('--', $repoDir) -ErrorAction SilentlyContinue
-        Write-WtfOk "code launched → $(Split-Path $repoDir -Leaf)"
+        # -n forces a NEW window. Without it, `code` reuses the last-active window —
+        # so if you had main\<repo> open, the worktree would muddle into that window
+        # and VS Code would show BOTH git repos (the bug you hit). A dedicated window
+        # for the worktree also guarantees its .vscode/settings.json is the one read.
+        Start-Process -FilePath 'code' -ArgumentList @('-n','--', $repoDir) -ErrorAction SilentlyContinue
+        Write-WtfOk "code launched (new window) → $(Split-Path $repoDir -Leaf)"
     } else {
         $wsPath = Get-WtfWorkspacePath $config $Context $Project $Branch
+        # Re-establish any missing dep junctions (e.g. created before junctions
+        # existed, or lost). Idempotent: present junctions are left alone.
+        foreach ($d in $deps) {
+            if (-not (Test-Path -LiteralPath $d.Dir) -and $d.Source) {
+                New-WtfDepJunction -FeatureDir $featureDir -Name $d.Name -Target $d.Source | Out-Null
+            }
+        }
         # Refresh the workspace so existing features pick up the latest folder
         # markers + phantom-repo hiding on every open.
         $wtNorm = foreach ($w in $wt)   { @{ Name = $w.Name; Dir = $w.Dir } }
         $dpNorm = foreach ($d in $deps) { @{ Name = $d.Name; Dir = $d.Dir } }
-        $ignoreRepos = foreach ($w in $wt) { Join-Path $layout.MainDir $w.RelPath }
+        # Phantoms to hide: each worktree's SOURCE main-checkout, and each dep's
+        # underlying repo (resolved through its junction). NEVER a worktree's own
+        # path — that would hide the repo we actually want.
+        $ignoreRepos = @()
+        foreach ($w in $wt)   { $ignoreRepos += Join-Path $layout.MainDir $w.RelPath }
+        foreach ($d in $deps) { if ($d.Source) { $ignoreRepos += $d.Source } else { $ignoreRepos += $d.Dir } }
         Write-WtfWorkspace -WorkspacePath $wsPath -FeatureDir $featureDir -Worktrees @($wtNorm) -Deps @($dpNorm) -IgnoreRepos @($ignoreRepos)
+        # Reciprocal: configure each worktree's source main checkout so opening it
+        # directly shows only main (hide the sibling worktree there).
+        foreach ($w in $wt) {
+            $srcRepo = Join-Path $layout.MainDir $w.RelPath
+            if (Test-Path $srcRepo) { Set-WtfVscodeRepoSettings -TargetDir $srcRepo -IgnoreRepos @($w.Dir) -NoParentFolderRepos }
+        }
         Write-WtfStep "VS Code workspace"
         Start-Process -FilePath 'code' -ArgumentList @('--', $wsPath) -ErrorAction SilentlyContinue
         Write-WtfOk "code launched"
@@ -3210,8 +3419,29 @@ function Invoke-WtfRemove {
         }
     }
 
+    # ── Unlink dependency junctions FIRST (critical safety) ───────────
+    # A recursive delete of the feature dir would otherwise follow a dep junction
+    # and wipe the dep's MAIN checkout. Unlink each junction (target untouched)
+    # before we ever recurse-delete the feature folder.
+    foreach ($d in @($layout.Deps)) {
+        if (Test-Path -LiteralPath $d.Dir) {
+            if (Test-WtfIsReparsePoint $d.Dir) {
+                Remove-WtfDepJunction -Link $d.Dir
+                Write-WtfOk "  unlinked dep $($d.Name) (main checkout untouched)"
+            } else {
+                # Defensive: a real folder where a junction was expected — do NOT
+                # auto-delete it; leave it and warn so nothing real is lost.
+                Write-WtfWarn "  dep $($d.Name) is a real folder, not a junction — leaving it"
+            }
+        }
+    }
+
     # Final cleanup: feature folder, sidecar meta, and workspace file.
+    # Belt-and-suspenders: never recurse THROUGH a leftover reparse point.
     if (Test-Path $featureDir) {
+        Get-ChildItem -LiteralPath $featureDir -Force -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } |
+            ForEach-Object { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { } }
         Remove-Item $featureDir -Recurse -Force -ErrorAction SilentlyContinue
     }
     $metaPath = Get-WtfMetaPath $featureDir
