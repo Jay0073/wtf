@@ -1112,16 +1112,26 @@ function Remove-WtfDepJunction {
         actual files. Safe to call on a missing path.
     #>
     param([Parameter(Mandatory)][string]$Link)
-    if (-not (Test-Path -LiteralPath $Link)) { return }
+    if (-not (Test-Path -LiteralPath $Link)) { return $true }
     if (-not (Test-WtfIsReparsePoint $Link)) {
         Write-WtfLog "DEP-JUNCTION remove SKIP (not a junction — real folder): $Link"
-        return
+        return $false
     }
     # [System.IO.Directory]::Delete on a junction unlinks it without recursing into
     # the target. (Remove-Item -Recurse on a junction CAN delete target contents on
     # some PS versions, so we use the .NET API which only removes the reparse point.)
-    try { [System.IO.Directory]::Delete($Link, $false) }
-    catch { Write-WtfLog "DEP-JUNCTION remove failed: $Link — $_" }
+    try {
+        [System.IO.Directory]::Delete($Link, $false)
+        if (Test-Path -LiteralPath $Link) {
+            Write-WtfLog "DEP-JUNCTION remove failed (still exists): $Link"
+            return $false
+        }
+        return $true
+    }
+    catch {
+        Write-WtfLog "DEP-JUNCTION remove failed: $Link — $_"
+        return $false
+    }
 }
 
 # ============================================================================
@@ -2179,7 +2189,7 @@ function Invoke-WtfCreate {
 
     if (Test-Path $featureDir) {
         Write-WtfFail "Feature directory already exists: $featureDir"
-        Write-WtfDetail "Use ``wtf open`` to reopen, or ``wtf remove`` to clean up."
+        Write-WtfDetail "Use ``wtf open`` to reopen, or ``wtf delete`` to clean up."
         return
     }
 
@@ -2476,7 +2486,7 @@ function Invoke-WtfAdd {
     if ($remainingForDeps.Count -gt 0) {
         $byLabelDeps = @{}
         $labelsDeps  = foreach ($c in $remainingForDeps) { $byLabelDeps[$c.RelPath] = $c; $c.RelPath }
-        $pickedDeps  = Read-WtfMultiChoice -Prompt "Repos to add as dependencies (workspace only, main branch)" -Options @($labelsDeps.Keys) -Min 0
+        $pickedDeps  = Read-WtfMultiChoice -Prompt "Repos to add as dependencies (workspace only, main branch)" -Options @($labelsDeps) -Min 0
     }
     
     if (@($pickedWorktrees).Count -eq 0 -and @($pickedDeps).Count -eq 0) { 
@@ -2611,6 +2621,283 @@ function Invoke-WtfAddRollback {
         Invoke-WtfWorktreePrune -RepoDir $c.Src
     }
     Write-WtfOk "rolled back"
+}
+
+# ============================================================================
+# COMMAND: wtf remove (drop individual repos/deps from a feature)
+# ============================================================================
+# The inverse of `wtf add`: pull one or more worktree repos or dependency repos
+# OUT of a feature without tearing the whole feature down. Worktree repos get
+# `git worktree remove`d (with the same dirty/unpushed safety as `wtf delete`);
+# deps get their junction unlinked (the dep's main checkout is NEVER touched).
+# Meta + workspace are rebuilt afterward so VS Code hot-reloads the new layout.
+
+function Invoke-WtfRemove {
+    param(
+        [string]$Context,
+        [string]$Project,
+        [string]$Branch,
+        [string[]]$Apps,
+        [switch]$Force,
+        [switch]$DryRun
+    )
+    Start-WtfLog 'remove'
+    Write-WtfBanner "remove — drop repos from a feature"
+
+    $config = Get-WtfConfig
+    if (-not $config) { return }
+
+    $Context = Select-WtfContext $config $Context
+    if (-not $Context) { return }
+
+    # Pick the feature to shrink (across the context).
+    if (-not $Branch) {
+        $features = @(Get-WtfActiveFeatures -Config $config -Context $Context)
+        if ($Project) { $features = @($features | Where-Object { $_.Project -eq $Project }) }
+        if ($features.Count -eq 0) { Write-WtfFail "No active features for $Context."; return }
+        $labels = $features | ForEach-Object { "$($_.Project) · $($_.Branch)  $($script:T.Detail)($($_.Apps -join ', '))$($script:T.Reset)" }
+        $pick = Read-WtfChoice -Prompt "Which feature to shrink" -Options $labels
+        if (-not $pick) { return }
+        $idx = [Array]::IndexOf($labels, $pick)
+        $Project = $features[$idx].Project; $Branch = $features[$idx].Branch
+    }
+
+    $featureDir = Get-WtfFeatureDir $config $Context $Project $Branch
+    if (-not (Test-Path $featureDir)) { Write-WtfFail "Feature not found: $featureDir"; return }
+    $meta = Read-WtfMeta -FeatureDir $featureDir
+    if (-not $meta) { Write-WtfFail "Meta file missing/corrupt in $featureDir"; return }
+
+    $type = if ($meta.type) { $meta.type } elseif (@($meta.apps).Count -eq 0) { 'mono' } else { 'multi' }
+    if ($type -eq 'mono') { Write-WtfFail "'$Project' is a mono feature — use ``wtf delete`` to tear it down."; return }
+
+    $layout = Resolve-WtfFeatureLayout -Config $config -Meta $meta -FeatureDir $featureDir
+
+    # Build a combined pick list: worktree repos (branched) + dep repos (junctioned).
+    # Label carries the kind so we know how to tear each one down.
+    $items    = [ordered]@{}   # label -> @{ Kind='worktree'|'dep'; Name; RelPath; Dir; Src }
+    foreach ($w in @($layout.Worktrees)) {
+        $lbl = "$($w.Name)  $($script:T.Detail)(worktree)$($script:T.Reset)"
+        $items[$lbl] = @{ Kind = 'worktree'; Name = $w.Name; RelPath = $w.RelPath; Dir = $w.Dir; Src = (Join-Path $layout.MainDir $w.RelPath) }
+    }
+    foreach ($d in @($layout.Deps)) {
+        $lbl = "$($d.Name)  $($script:T.Detail)(dependency)$($script:T.Reset)"
+        $items[$lbl] = @{ Kind = 'dep'; Name = $d.Name; RelPath = $d.RelPath; Dir = $d.Dir; Src = $d.Source }
+    }
+    if ($items.Count -eq 0) { Write-WtfWarn "Nothing in this feature to remove."; return }
+
+    # Selection: honor -Apps (by repo name or relpath) when given non-interactively.
+    # If none match, fall back to the picker so a typo doesn't end the command early.
+    $picked = @()
+    $requested = @(
+        $Apps |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        ForEach-Object { $_.Trim() }
+    )
+    if ($requested.Count -gt 0) {
+        $itemByName = @{}
+        foreach ($lbl in $items.Keys) {
+            $item = $items[$lbl]
+            $itemByName[$item.Name]    = $lbl
+            $itemByName[$item.RelPath] = $lbl
+        }
+        foreach ($req in $requested) {
+            if ($itemByName.ContainsKey($req)) { $picked += $itemByName[$req] }
+        }
+        $picked = @($picked | Select-Object -Unique)
+        $unknown = @($requested | Where-Object { -not $itemByName.ContainsKey($_) })
+        if ($unknown.Count -gt 0) { Write-WtfWarn "Not in this feature (ignored): $($unknown -join ', ')" }
+    }
+    if ($picked.Count -eq 0) {
+        if ($requested.Count -gt 0) { Write-WtfDetail "No valid repos matched; choose from the picker below." }
+        $picked = Read-WtfMultiChoice -Prompt "Repos to remove from '$Branch'" -Options @($items.Keys) -Min 0
+    }
+    if (@($picked).Count -eq 0) { Write-WtfWarn "Nothing selected."; return }
+
+    $chosen = @($picked | ForEach-Object { $items[$_] })
+    $wtChosen  = @($chosen | Where-Object { $_.Kind -eq 'worktree' })
+    $depChosen = @($chosen | Where-Object { $_.Kind -eq 'dep' })
+
+    # Guard: a multi feature must keep at least one worktree. Removing every
+    # branched repo would leave an empty shell — that's a `wtf delete`.
+    $remainingWt = @($layout.Worktrees).Count - $wtChosen.Count
+    if ($remainingWt -le 0) {
+        Write-WtfFail "That would remove every worktree repo, leaving an empty feature."
+        Write-WtfDetail "Use ``wtf delete`` to tear the whole feature down instead."
+        return
+    }
+
+    # ── Safety checks on worktree repos (dirty / unpushed) ────────────
+    if ($wtChosen.Count -gt 0) {
+        Write-WtfHeader "Safety checks"
+        $issues = @()
+        foreach ($w in $wtChosen) {
+            if (-not (Test-Path $w.Dir)) { Write-WtfWarn "$($w.Name) — worktree folder missing, will git-prune"; continue }
+            Write-WtfStep "$($w.Name)"
+            $status = Invoke-WtfGit -WorkingDir $w.Dir -GitArgs @('status','--porcelain')
+            if ($status.Stdout) {
+                $lines = ($status.Stdout -split "`n").Count
+                Write-WtfFail "  uncommitted changes ($lines files)"
+                $issues += "$($w.Name): dirty"
+            }
+            $unpushed = Invoke-WtfGit -WorkingDir $w.Dir -GitArgs @('log','--oneline','@{u}..HEAD')
+            if ($unpushed.Ok -and $unpushed.Stdout) {
+                $count = ($unpushed.Stdout -split "`n").Count
+                Write-WtfFail "  $count unpushed commit(s)"
+                $issues += "$($w.Name): unpushed"
+            } elseif (-not $unpushed.Ok -and $unpushed.Stderr -match 'no upstream') {
+                Write-WtfWarn "  no upstream — branch never pushed"
+            }
+            if (-not $issues -or $issues[-1] -notlike "$($w.Name):*") { Write-WtfOk "  clean & pushed" }
+        }
+        if ($issues.Count -gt 0 -and -not $Force) {
+            Write-WtfFail "Aborting due to: $($issues -join '; ')"
+            Write-WtfDetail "Pass --force to override (you will lose unpushed/uncommitted work)."
+            return
+        }
+        if ($issues.Count -gt 0) { Write-WtfWarn "Forcing despite: $($issues -join '; ')" }
+    }
+
+    # ── Plan / confirm ────────────────────────────────────────────────
+    Write-WtfHeader "Plan"
+    Write-WtfInfo "Feature:  $Project · $Branch"
+    if ($wtChosen.Count -gt 0)  { Write-WtfInfo "Removing worktrees:    $(@($wtChosen  | ForEach-Object { $_.Name }) -join ', ')" }
+    if ($depChosen.Count -gt 0) { Write-WtfInfo "Unlinking dependencies: $(@($depChosen | ForEach-Object { $_.Name }) -join ', ')" }
+    if ($DryRun) { Write-WtfWarn "DRY RUN — nothing changed."; return }
+    if (-not (Read-WtfConfirm "Proceed?" $true)) { Write-WtfWarn "Cancelled."; return }
+
+    # ── Tear down worktree repos ──────────────────────────────────────
+    $stuck = @()
+    $removedWt = @()
+    if ($wtChosen.Count -gt 0) {
+        Write-WtfHeader "Worktrees"
+        Write-WtfDetail "If removal stalls, close terminals/VS Code tabs cwd'd into these repos."
+        foreach ($w in $wtChosen) {
+            Write-WtfStep "$($w.Name)"
+            if (Test-WtfIsGitRepo $w.Src) {
+                $r = Invoke-WtfGit -WorkingDir $w.Src -GitArgs @('worktree','remove','--force', $w.Dir)
+                if (-not $r.Ok) {
+                    if ($r.Stderr -match 'Permission denied|being used|access') {
+                        Write-WtfWarn "  files locked — close VS Code/terminals on this repo"
+                    } else {
+                        Write-WtfWarn "  git worktree remove failed: $($r.Stderr)"
+                    }
+                    if (Test-Path $w.Dir) { Remove-Item $w.Dir -Recurse -Force -ErrorAction SilentlyContinue }
+                }
+                Invoke-WtfWorktreePrune -RepoDir $w.Src
+            } else {
+                Write-WtfWarn "  source repo missing; cleaning files only"
+                if (Test-Path $w.Dir) { Remove-Item $w.Dir -Recurse -Force -ErrorAction SilentlyContinue }
+            }
+            if (Test-Path $w.Dir) {
+                $stuck += $w.Name
+                Write-WtfFail "  still present (locked): $($w.Dir)"
+            } else {
+                $removedWt += $w.Name
+                Write-WtfOk "  removed"
+            }
+        }
+    }
+
+    # ── Unlink dependency junctions (target's main checkout untouched) ─
+    $removedDeps = @()
+    if ($depChosen.Count -gt 0) {
+        Write-WtfHeader "Dependencies"
+        foreach ($d in $depChosen) {
+            Write-WtfStep "$($d.Name)"
+            $removed = $false
+            if (Test-Path -LiteralPath $d.Dir) {
+                if (Test-WtfIsReparsePoint $d.Dir) {
+                    $ok = Remove-WtfDepJunction -Link $d.Dir
+                    if ($ok) {
+                        Write-WtfOk "  unlinked (main checkout untouched)"
+                        $removed = $true
+                    } else {
+                        Write-WtfWarn "  couldn't unlink junction — leaving it in feature"
+                    }
+                } else {
+                    Write-WtfWarn "  real folder, not a junction — leaving it on disk"
+                }
+            } else {
+                Write-WtfOk "  already gone"
+                $removed = $true
+            }
+            if ($removed) { $removedDeps += $d.Name }
+        }
+    }
+
+    # A worktree that stayed locked keeps its meta entry so a retry can finish it;
+    # everything actually removed is dropped from apps/appPaths/deps.
+    $removedWtSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($n in $removedWt) { [void]$removedWtSet.Add($n) }
+    $removedDepSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($n in $removedDeps) { [void]$removedDepSet.Add($n) }
+
+    # ── Rebuild meta (preserve slots + surviving apps/deps) ───────────
+    $newApps  = @(@($meta.apps) | Where-Object { $_ -and -not $removedWtSet.Contains($_) })
+    $appPaths = @{}
+    foreach ($a in $newApps) {
+        $appPaths[$a] = if ($meta.appPaths -and (Test-ObjectHasKey $meta.appPaths $a)) { Get-ObjectValue $meta.appPaths $a } else { $a }
+    }
+    $deps = @()
+    foreach ($d in @($meta.deps)) {
+        if (-not $d) { continue }
+        $dn = Get-ObjectValue $d 'name'
+        if ($removedDepSet.Contains($dn)) { continue }
+        $deps += @{ name = $dn; path = (Get-ObjectValue $d 'path') }
+    }
+
+    $keepSlots    = @(Get-WtfSlots $meta)
+    $keepArchived = @(Get-WtfArchivedSlots $meta)
+    $newMeta = New-WtfMeta -Context $Context -Project $Project -Branch $Branch -Type 'multi' `
+                           -Apps $newApps -AppPaths $appPaths -Deps @($deps) -Panes ([bool]$meta.panes) `
+                           -Slots $keepSlots -ArchivedSlots $keepArchived
+    $newMeta.createdAt = $meta.createdAt
+    Save-WtfMeta -FeatureDir $featureDir -Meta $newMeta
+
+    # ── Rebuild the workspace file ────────────────────────────────────
+    $wsPath   = Get-WtfWorkspacePath $config $Context $Project $Branch
+    $newLayout = Resolve-WtfFeatureLayout -Config $config -Meta $newMeta -FeatureDir $featureDir
+    $ignoreRepos = @()
+    foreach ($w in @($newLayout.Worktrees)) { $ignoreRepos += Join-Path $newLayout.MainDir $w.RelPath }
+    foreach ($d in @($newLayout.Deps))      { $ignoreRepos += $d.Dir }
+    Write-WtfWorkspace -WorkspacePath $wsPath -FeatureDir $featureDir -Worktrees @($newLayout.Worktrees) -Deps @($newLayout.Deps) -IgnoreRepos @($ignoreRepos)
+    Write-WtfOk "workspace updated (VS Code will hot-reload)"
+
+    # ── Offer to delete the local branch for removed worktree repos ───
+    if ($removedWt.Count -gt 0) {
+        $branchRepos = @()
+        foreach ($w in $wtChosen) {
+            if (-not $removedWtSet.Contains($w.Name)) { continue }
+            if (Test-WtfIsGitRepo $w.Src) {
+                $has = Invoke-WtfGit -WorkingDir $w.Src -GitArgs @('show-ref','--verify','--quiet',"refs/heads/$Branch")
+                if ($has.Ok) { $branchRepos += @{ Name = $w.Name; Src = $w.Src } }
+            }
+        }
+        if ($branchRepos.Count -gt 0) {
+            if (Read-WtfConfirm "Also delete the local branch '$Branch' from $($branchRepos.Count) removed repo(s)?" $false) {
+                foreach ($b in $branchRepos) {
+                    $d = Invoke-WtfGit -WorkingDir $b.Src -GitArgs @('branch','-D', $Branch)
+                    if ($d.Ok) { Write-WtfOk "  deleted $Branch in $($b.Name)" }
+                    else        { Write-WtfWarn "  couldn't delete in $($b.Name): $($d.Stderr)" }
+                }
+            }
+        }
+    }
+
+    # ── Summary ───────────────────────────────────────────────────────
+    if ($stuck.Count -gt 0) {
+        Write-WtfSummary -Title "Partially removed from: $Branch" -Color $script:T.Warn -Lines @(
+            "$($script:T.Warn)Locked (still on disk):$($script:T.Reset) $($stuck -join ', ')",
+            "$($script:T.Detail)Close VS Code + terminals on those repos, then run ``wtf remove`` again.$($script:T.Reset)"
+        )
+        return
+    }
+    $sum = @()
+    if ($removedWt.Count -gt 0)   { $sum += "$($script:T.Bold)Worktrees removed:$($script:T.Reset) $($removedWt -join ', ')" }
+    if ($removedDeps.Count -gt 0) { $sum += "$($script:T.Bold)Dependencies unlinked:$($script:T.Reset) $($removedDeps -join ', ')" }
+    if ($newApps.Count -gt 0)     { $sum += "$($script:T.Detail)Still in feature: $($newApps -join ', ')$($script:T.Reset)" }
+    $sum += "$($script:T.Detail)Run ``wtf open`` to refresh terminals.$($script:T.Reset)"
+    Write-WtfSummary -Title "Removed from: $Branch" -Lines @($sum)
 }
 
 # ============================================================================
@@ -3290,10 +3577,10 @@ function Invoke-WtfOpen {
 }
 
 # ============================================================================
-# COMMAND: wtf remove
+# COMMAND: wtf delete
 # ============================================================================
 
-function Invoke-WtfRemove {
+function Invoke-WtfDelete {
     param(
         [string]$Context,
         [string]$Project,
@@ -3301,19 +3588,19 @@ function Invoke-WtfRemove {
         [switch]$Force,
         [switch]$DryRun
     )
-    Start-WtfLog 'remove'
-    Write-WtfBanner "remove — tear down a feature"
+    Start-WtfLog 'delete'
+    Write-WtfBanner "delete — tear down a whole feature"
 
     $config = Get-WtfConfig
     if (-not $config) { return }
 
     if (-not $Context -or -not $Project -or -not $Branch) {
         $features = Get-WtfActiveFeatures -Config $config
-        if ($features.Count -eq 0) { Write-WtfFail "Nothing to remove."; return }
+        if ($features.Count -eq 0) { Write-WtfFail "Nothing to delete."; return }
         $labels = $features | ForEach-Object {
             "$($_.Context)/$($_.Project) · $($_.Branch)"
         }
-        $pick = Read-WtfChoice -Prompt "Remove which feature" -Options $labels
+        $pick = Read-WtfChoice -Prompt "Delete which feature" -Options $labels
         if (-not $pick) { return }
         $idx = [Array]::IndexOf($labels, $pick)
         $f = $features[$idx]
@@ -3426,8 +3713,12 @@ function Invoke-WtfRemove {
     foreach ($d in @($layout.Deps)) {
         if (Test-Path -LiteralPath $d.Dir) {
             if (Test-WtfIsReparsePoint $d.Dir) {
-                Remove-WtfDepJunction -Link $d.Dir
-                Write-WtfOk "  unlinked dep $($d.Name) (main checkout untouched)"
+                $ok = Remove-WtfDepJunction -Link $d.Dir
+                if ($ok) {
+                    Write-WtfOk "  unlinked dep $($d.Name) (main checkout untouched)"
+                } else {
+                    Write-WtfWarn "  couldn't unlink dep $($d.Name); leaving it for final cleanup"
+                }
             } else {
                 # Defensive: a real folder where a junction was expected — do NOT
                 # auto-delete it; leave it and warn so nothing real is lost.
@@ -3454,7 +3745,7 @@ function Invoke-WtfRemove {
     if ($stuck.Count -gt 0) {
         Write-WtfSummary -Title "Partially removed: $Branch" -Color $script:T.Warn -Lines @(
             "$($script:T.Warn)Locked (still on disk):$($script:T.Reset) $($stuck -join ', ')",
-            "$($script:T.Detail)Close the feature's VS Code + terminal windows, then run ``wtf remove`` again$($script:T.Reset)",
+            "$($script:T.Detail)Close the feature's VS Code + terminal windows, then run ``wtf delete`` again$($script:T.Reset)",
             "$($script:T.Detail)(or ``wtf doctor -Fix`` to clean leftovers).$($script:T.Reset)"
         )
         return
@@ -3480,7 +3771,7 @@ function Invoke-WtfRemove {
         }
     }
 
-    Write-WtfSummary -Title "Removed: $Branch" -Lines @(
+    Write-WtfSummary -Title "Deleted: $Branch" -Lines @(
         "$($script:T.Detail)All worktrees and the workspace file are gone.$($script:T.Reset)",
         "$($script:T.Detail)Remote branches (if pushed) are untouched — delete on the host if needed.$($script:T.Reset)"
     )
@@ -4036,8 +4327,9 @@ function wtf {
         Write-WtfDetail "  wtf edit    [ctx proj branch]          set up / change this feature's agent terminals"
         Write-WtfDetail "  wtf sessions[ctx proj branch]          list active + archived sessions; reopen one"
         Write-WtfDetail "  wtf status  [ctx proj branch]          feature dashboard: git, sessions, plan progress"
-        Write-WtfDetail "  wtf add     [ctx proj branch apps...] [--dry-run]"
-        Write-WtfDetail "  wtf remove  [ctx proj branch] [--force] [--dry-run]"
+        Write-WtfDetail "  wtf add     [ctx proj branch apps...] [--dry-run]   add repos/deps to a feature"
+        Write-WtfDetail "  wtf remove  [ctx proj branch apps...] [--force] [--dry-run]  drop repos/deps from a feature"
+        Write-WtfDetail "  wtf delete  [ctx proj branch] [--force] [--dry-run]  tear down a whole feature"
         Write-WtfDetail "  wtf list"
         Write-WtfDetail "  wtf doctor  [-Fix]"
         Write-WtfDetail "  wtf config            (interactive menu)"
@@ -4060,8 +4352,10 @@ function wtf {
         'sessions' { Invoke-WtfSessions -Context $Context -Project $Project -Branch $Branch }
         'session'  { Invoke-WtfSessions -Context $Context -Project $Project -Branch $Branch }
         'status'   { Invoke-WtfStatus   -Context $Context -Project $Project -Branch $Branch }
-        'remove' { Invoke-WtfRemove -Context $Context -Project $Project -Branch $Branch -Force:$force -DryRun:$dryRun }
-        'rm'     { Invoke-WtfRemove -Context $Context -Project $Project -Branch $Branch -Force:$force -DryRun:$dryRun }
+        'remove' { Invoke-WtfRemove -Context $Context -Project $Project -Branch $Branch -Apps $apps -Force:$force -DryRun:$dryRun }
+        'rm'     { Invoke-WtfRemove -Context $Context -Project $Project -Branch $Branch -Apps $apps -Force:$force -DryRun:$dryRun }
+        'delete' { Invoke-WtfDelete -Context $Context -Project $Project -Branch $Branch -Force:$force -DryRun:$dryRun }
+        'del'    { Invoke-WtfDelete -Context $Context -Project $Project -Branch $Branch -Force:$force -DryRun:$dryRun }
         'list'   { Invoke-WtfList }
         'ls'     { Invoke-WtfList }
         'doctor' { Invoke-WtfDoctor -Fix:$fix }
