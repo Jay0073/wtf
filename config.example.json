@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "contexts": {
+    "personal": {
+      "mainDir": "C:\Users\you\Documents\projects",
+      "worktreeDir": "C:\Users\you\Documents\projects\worktrees",
+      "workspaceDir": "C:\Users\you\Documents\projects\worktrees",
+      "projects": {
+        "my-app": {
+          "type": "multi",
+          "apps": {
+            "backend": "my-app-backend",
+            "frontend": "my-app-frontend"
+          }
+        }
+      }
+    },
+    "work": {
+      "mainDir": "C:\Users\you\Documents\work",
+      "worktreeDir": "C:\Users\you\Documents\work\worktrees",
+      "workspaceDir": "C:\Users\you\Documents\work\worktrees",
+      "projects": {}
+    }
+  }
+}
