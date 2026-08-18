@@ -180,6 +180,54 @@ a real pane: the text sits at the prompt and produces no output.
 Version 1 layouts have no `run` field, and everything in them was written
 expecting to run, so a missing value reads as true.
 
+## Knowing which layout a tab is
+
+Update-not-overwrite is only useful if the tool can tell which layout a tab
+belongs to. There are three routes, tried in order.
+
+The name on the command line is the first. The tab title is the second: a
+restore pins the layout name on every pane, so any tab `wtf tab open` built
+answers exactly. Verified with a probe — the tab title even survives a pane the
+user adds by hand, because `new-tab --title` pins the title at the tab level
+rather than letting it follow the focused pane.
+
+But a tab arranged by hand and snapped in place never gets a name written onto
+it, because snapping does not rename your tab. That was the hole: the first snap
+saved the layout, and the second snap of the same tab found no identity and
+started a new one.
+
+`Get-WtfLayoutMatch` closes it by comparing folders. Over a working day panes
+are added and closed and the shape moves, but the folders stay, which makes them
+the part worth matching on. Split direction, sizes and pane order are ignored.
+
+Folders are compared as a multiset, so a layout with two panes in one folder
+needs two panes in that folder to score both. The score is
+`matched / max(tabPanes, layoutPanes)` — dividing by the larger side means
+neither extra panes in the tab nor extra panes in the layout can reach a perfect
+score. The threshold is 0.5, which rejects "one folder in common"; a home folder
+appears in almost every layout and would otherwise match everything.
+
+Measured against the real saved layouts:
+
+| tab | score | offered? |
+|---|---|---|
+| exactly as saved | 1.00 | yes |
+| one pane added | 0.75 | yes |
+| two panes added | 0.60 | yes |
+| one pane closed | 0.67 | yes |
+| one closed and one added | 0.67 | yes |
+| an unrelated tab | — | no |
+| a single home-folder pane | 0.25 | no |
+
+It always asks. A wrong guess costs one keypress; a wrong silent save costs a
+layout.
+
+Not done on purpose: writing the layout name onto a hand-built tab after
+snapping, so route 2 would work next time. `--suppressApplicationTitle` cannot
+be applied to a pane that already exists, so an agent CLI would overwrite the
+title whenever it repainted, and the identity would work for plain shells and
+fail for exactly the panes that matter most.
+
 ## Update, not overwrite
 
 A snapshot re-reads the whole tab, so changes are noticed by construction. The
@@ -240,6 +288,10 @@ stop the failure happening, not only clean up after it.
 - **git on 5.1.** `ProcessStartInfo.ArgumentList` is .NET Core only; on .NET
   Framework it is `$null`, so every git call threw. There is now a fallback that
   builds a correctly quoted command line.
+- **A tab that could not be recognised.** Snapping a hand-built tab saved the
+  layout but wrote nothing onto the tab, so the next snap of that same tab found
+  no identity and started a second layout. Adding a pane and re-snapping — the
+  normal working cycle — created a duplicate every time.
 - **Colour variables overwritten by loop variables.** PowerShell ignores case in
   variable names, so `$R` (reset) and `$r` (rectangle) were one variable. The
   drawing came out full of `System.Collections.Hashtable`.
@@ -261,6 +313,9 @@ stop the failure happening, not only clean up after it.
 - `test-layout-core.ps1` — 40 unit tests: name rules, geometry to tree, restore
   plan, launch-argument encoding, all four diff cases, JSON round trip. Passes on
   both hosts.
+- `test-layout-core.ps1` section 12 — 20 tests for recognising a tab: unchanged,
+  a pane added, a pane closed, both at once, an unrelated tab, the closer of two
+  layouts, duplicate folders as a multiset, and the threshold itself.
 - `test-longpath.ps1` — 14 tests: `\\?\` path building including UNC, deleting a
   tree 479 characters deep, read-only files, a junction whose target must
   survive, a missing path, and that git really receives `core.longpaths`.

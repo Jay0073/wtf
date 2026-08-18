@@ -776,6 +776,84 @@ function Find-WtfLayoutName {
     return ''
 }
 
+function Get-WtfDirKey {
+    # One folder, in the form used for comparing: no trailing slash, lower case.
+    param([string]$Dir)
+    if (-not $Dir) { return '' }
+    return ([string]$Dir).TrimEnd('\', '/').ToLower()
+}
+
+function Get-WtfLayoutMatch {
+    <#
+    .SYNOPSIS
+        Which saved layout does this tab look like?
+    .DESCRIPTION
+        The tab title is the exact answer, but only a tab that `wtf tab open`
+        built carries it. A tab you arranged by hand and snapped in place has an
+        ordinary title, and nothing marks it as a layout.
+
+        So the folders are used instead. Over a working day panes are added and
+        closed and the shape moves, but the folders you work in stay the same,
+        which makes them the part worth matching on. Split direction, sizes and
+        pane order are all ignored on purpose.
+
+        Folders are compared as a multiset, so a layout with two panes in the
+        same folder needs two panes in that folder to score both.
+    .OUTPUTS
+        @{ Name; Score; Matched; TabPanes; LayoutPanes } for the best candidate,
+        or $null when nothing is close enough. Score is 0..1.
+    #>
+    param(
+        [Parameter(Mandatory)]$Capture,
+        [double]$Threshold = 0.5,
+        [string[]]$Skip = @()
+    )
+    $tabDirs = @()
+    foreach ($p in @($Capture.Panes)) {
+        $k = Get-WtfDirKey $p.dir
+        if ($k) { $tabDirs += $k }
+    }
+    if ($tabDirs.Count -eq 0) { return $null }
+
+    $best = $null
+    foreach ($n in (Get-WtfLayoutNames)) {
+        if ($Skip -contains $n) { continue }
+        $lay = Read-WtfLayout -Name $n
+        if (-not $lay) { continue }
+
+        $pool = @()
+        foreach ($p in @($lay.panes)) {
+            $k = Get-WtfDirKey $p.dir
+            if ($k) { $pool += $k }
+        }
+        if ($pool.Count -eq 0) { continue }
+
+        # Multiset intersection: each layout folder can be claimed once.
+        $left    = [System.Collections.ArrayList]@($pool)
+        $matched = 0
+        foreach ($d in $tabDirs) {
+            $i = $left.IndexOf($d)
+            if ($i -ge 0) { $left.RemoveAt($i); $matched++ }
+        }
+        if ($matched -eq 0) { continue }
+
+        # Divided by the LARGER side, so neither a tab with extra panes nor a
+        # layout with extra panes can score a perfect match.
+        $denom = [Math]::Max($tabDirs.Count, $pool.Count)
+        $score = [double]$matched / [double]$denom
+
+        if (-not $best -or $score -gt $best.Score -or
+            ($score -eq $best.Score -and $matched -gt $best.Matched)) {
+            $best = @{ Name = $n; Score = $score; Matched = $matched
+                       TabPanes = $tabDirs.Count; LayoutPanes = $pool.Count }
+        }
+    }
+
+    if (-not $best) { return $null }
+    if ($best.Score -lt $Threshold) { return $null }
+    return $best
+}
+
 function Read-WtfLayout {
     param([Parameter(Mandatory)][string]$Name)
     $p = Get-WtfLayoutPath -Name $Name

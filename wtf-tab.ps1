@@ -365,6 +365,13 @@ function Invoke-WtfSnap {
     if (-not $cap) { Write-WtfLayoutFail "Nothing to capture in this tab."; return }
 
     # Decide which layout this is.
+    #
+    # Three ways, in order of how certain they are:
+    #   1. you named it on the command line
+    #   2. the tab title is a layout name - true for any tab `wtf tab open` built
+    #   3. the folders look like a layout you already have - which is the case
+    #      for a tab you arranged by hand and snapped in place, because nothing
+    #      ever wrote a name onto it
     $layoutName = ''
     if ($Name) {
         $existing = Find-WtfLayoutName -Name $Name
@@ -383,6 +390,40 @@ function Invoke-WtfSnap {
         Write-WtfTitle "This tab - $(@($cap.Panes).Count) panes"
         Show-WtfLayoutMap -Layout (New-WtfPreviewLayout -Rows $cap.Panes -Tree $cap.Tree) -Width (Get-WtfMapWidth)
 
+        # Adding and closing panes as work moves on is normal, so a tab is
+        # recognised by the folders it is working in, not by its shape.
+        # At most three guesses. Past that it stops being help and turns into
+        # an interrogation; the picker below is the better answer.
+        $tried = @()
+        while ($tried.Count -lt 3) {
+            $guess = Get-WtfLayoutMatch -Capture $cap -Skip $tried
+            if (-not $guess) { break }
+            $tried += $guess.Name
+
+            $diffWord = 'the same panes'
+            if ($guess.TabPanes -gt $guess.LayoutPanes)    { $diffWord = "$($guess.TabPanes - $guess.LayoutPanes) pane(s) added since" }
+            elseif ($guess.TabPanes -lt $guess.LayoutPanes) { $diffWord = "$($guess.LayoutPanes - $guess.TabPanes) pane(s) closed since" }
+
+            Write-WtfTitle "This looks like '$($guess.Name)'"
+            Write-WtfLayoutInfo "$($guess.Matched) of $($guess.TabPanes) panes are in the same folders - $diffWord"
+            $saved0 = Read-WtfLayout -Name $guess.Name
+            if ($saved0) { Show-WtfLayoutMap -Layout $saved0 -Width (Get-WtfMapWidth) }
+
+            if (Read-WtfYesNo -Question "Update '$($guess.Name)' with this tab?" -Default $true) {
+                $layoutName = $guess.Name
+                break
+            }
+        }
+    }
+
+    if (-not $layoutName -and @(Get-WtfLayoutNames).Count -gt 0) {
+        if (Read-WtfYesNo -Question 'Update one of your saved layouts instead?' -Default $false) {
+            $picked = Select-WtfLayoutName -Purpose 'Which layout should this tab replace?'
+            if ($picked) { $layoutName = $picked }
+        }
+    }
+
+    if (-not $layoutName) {
         Write-WtfTitle "Name this layout"
         Write-WtfRaw "  $($script:WtfEsc)[38;5;240mletters, digits, spaces, - _ . and emoji; up to 60 characters$($script:WtfEsc)[0m`n"
         while ($true) {

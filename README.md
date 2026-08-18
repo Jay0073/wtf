@@ -145,6 +145,37 @@ for four panes.
 `wtf tab open [name]` does the same, and `wtf tab ls` prints every layout drawn
 out in full.
 
+### Which layout is this tab?
+
+Snapping the same tab twice should update the layout, not make a second one.
+So the tool has to know which layout a tab belongs to. It works this out in
+three ways, in order of how certain they are:
+
+1. **You said so.** `wtf snap <name>`.
+2. **The tab title.** A tab that `wtf tab open` built carries the layout name as
+   its title, on every pane. That is exact and instant.
+3. **The folders.** A tab you arranged by hand and snapped in place has an
+   ordinary title, because snapping does not rename your tab. So the folders are
+   compared against every saved layout instead.
+
+The third one is the one that matters day to day. Panes get added and closed as
+work moves on, but the folders you work in stay the same, which makes them the
+part worth matching on. Shape, sizes and pane order are all ignored.
+
+```
+▌ This looks like 'pgn-re'
+  3 of 4 panes are in the same folders - 1 pane(s) added since
+  <the saved layout, drawn>
+
+  ? Update 'pgn-re' with this tab? [Y/n]
+```
+
+Say no and it offers the next closest, up to three, then the full list, then a
+new name. Nothing is decided quietly.
+
+A match needs at least half the panes to line up, counting the larger side. One
+folder in common is not enough — your home folder is in almost every layout.
+
 ### Changing one
 
 Layouts are not frozen. Close the pane for a feature you finished, split a new
@@ -238,7 +269,7 @@ pick from.
 
 | Command | What it does |
 |---|---|
-| `wtf snap [name]` | Saves the current tab as a layout: the pane tree, the split sizes, each pane's folder and command. Draws the tab, then walks the panes asking for a command and whether it should run. Asks for a description. If the tab already belongs to a layout, this **updates** it. |
+| `wtf snap [name]` | Saves the current tab as a layout: the pane tree, the split sizes, each pane's folder and command. Recognises a tab it has seen before by its title or its folders, and offers to update that layout. Draws the tab, then walks the panes asking for a command and whether it should run. Asks for a description. If the tab already belongs to a layout, this **updates** it. |
 | `wtf tab ls` &nbsp;·&nbsp; `wtf tabs` | Lists every saved layout, each one **drawn** as boxes with its description. |
 | `wtf tab open [name]` &nbsp;·&nbsp; `wtf open [name]` | Rebuilds a layout as a new tab in the current window. With no name you get a picker: names on the left, the highlighted layout drawn beside them, description below. |
 | `wtf tab edit [name]` &nbsp;·&nbsp; `wtf edit [name]` | Opens the layout's JSON in your editor, to change commands or the `run` flag by hand. |

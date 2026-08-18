@@ -211,6 +211,85 @@ Check "the drawing sits beside the list" ($fplain -match 'pane 1') ''
 Check "the pane count is shown"          ($fplain -match '3 panes') ''
 Check "no description says so"           ($fplain -match '\(no description\)') ''
 
+
+Write-Host ""
+Write-Host "=== 12. which layout is this tab? ===" -ForegroundColor Cyan
+
+function New-ZZ { param([string]$Nm, [string[]]$Dirs)
+    $ps = @(); $i = 1
+    foreach ($d in $Dirs) { $ps += @{ id = $i; dir = $d; command = ''; run = $true }; $i++ }
+    $o = New-WtfLayoutObject -Name $Nm -Panes $ps -Tree @{kind='leaf';index=1} -Description ''
+    [void](Write-WtfLayout -Name $Nm -Layout $o)
+}
+function New-Cap { param([string[]]$Dirs)
+    $ps = @(); $i = 1
+    foreach ($d in $Dirs) { $ps += @{ id = $i; dir = $d; dirSource = 'prompt' }; $i++ }
+    return @{ TabName = 'Windows PowerShell'; Panes = @($ps); Tree = @{kind='leaf';index=1} }
+}
+
+$zzNames = @('zz-m-alpha','zz-m-beta','zz-m-gamma','zz-m-delta')
+foreach ($n in $zzNames) { $p = Get-WtfLayoutPath -Name $n; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force } }
+
+New-ZZ 'zz-m-alpha' @('C:\work\api','C:\work\web','C:\work\api')
+New-ZZ 'zz-m-beta'  @('C:\other\one','C:\other\two')
+
+Check "folder keys ignore case"            ((Get-WtfDirKey 'C:\Work\API') -eq (Get-WtfDirKey 'c:\work\api')) ''
+Check "folder keys ignore a trailing slash" ((Get-WtfDirKey 'C:\work\api\') -eq (Get-WtfDirKey 'C:\work\api')) ''
+Check "an empty folder gives an empty key"  ((Get-WtfDirKey '') -eq '') ''
+
+# the exact same tab
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\work\api','C:\work\web','C:\work\api'))
+Check "an unchanged tab is recognised"        ($m -and $m.Name -eq 'zz-m-alpha') "$($m.Name)"
+Check "an unchanged tab scores 1"             ($m -and $m.Score -eq 1.0) "$($m.Score)"
+
+# one pane ADDED - the case that sent Jay into a new layout
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\work\api','C:\work\web','C:\work\api','C:\brand\new'))
+Check "a tab with an extra pane is recognised" ($m -and $m.Name -eq 'zz-m-alpha') "$($m.Name)"
+Check "the extra pane is counted"              ($m -and $m.TabPanes -eq 4 -and $m.LayoutPanes -eq 3) "$($m.TabPanes)/$($m.LayoutPanes)"
+Check "and it no longer scores 1"              ($m -and $m.Score -lt 1.0) "$($m.Score)"
+
+# one pane CLOSED
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\work\api','C:\work\web'))
+Check "a tab with a pane closed is recognised" ($m -and $m.Name -eq 'zz-m-alpha') "$($m.Name)"
+
+# both at once, on a layout big enough for it to mean something
+New-ZZ 'zz-m-delta' @('C:\big\a','C:\big\b','C:\big\c','C:\big\d')
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\big\a','C:\big\b','C:\big\c','C:\brand\new'))
+Check "one added and one closed still matches" ($m -and $m.Name -eq 'zz-m-delta') "$($m.Name)"
+Check "3 of 4 folders scores 0.75"             ($m -and [Math]::Round($m.Score,2) -eq 0.75) "$($m.Score)"
+
+# one shared folder out of three is weak evidence - a home folder is shared by
+# nearly every layout, so this must NOT be offered as a match
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\work\api','C:\brand\new'))
+Check "one folder in common is not enough"     ($null -eq $m) "$($m.Name)"
+
+# nothing in common
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\nothing\here','C:\nothing\there'))
+Check "an unrelated tab matches nothing"       ($null -eq $m) "$($m.Name)"
+
+# the RIGHT one of two
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\other\one','C:\other\two'))
+Check "the closer layout wins"                 ($m -and $m.Name -eq 'zz-m-beta') "$($m.Name)"
+
+# duplicate folders are a multiset, not a set
+New-ZZ 'zz-m-gamma' @('C:\dup\x','C:\dup\x','C:\dup\x','C:\dup\x')
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\dup\x')) -Threshold 0.0
+Check "one pane cannot claim four"             ($m -and $m.Matched -eq 1) "$($m.Matched)"
+Check "and it scores 1 of 4"                   ($m -and [Math]::Round($m.Score,2) -eq 0.25) "$($m.Score)"
+Check "0.25 is below the threshold"            ($null -eq (Get-WtfLayoutMatch -Capture (New-Cap @('C:\dup\x')))) ''
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\dup\x','C:\dup\x','C:\dup\x','C:\dup\x')) -Threshold 0.0
+Check "four panes claim all four"              ($m -and $m.Matched -eq 4) "$($m.Matched)"
+
+# Skip lets the caller offer the next best guess
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('C:\work\api','C:\work\web','C:\work\api')) -Skip @('zz-m-alpha')
+Check "Skip passes over a rejected guess"      ($null -eq $m -or $m.Name -ne 'zz-m-alpha') "$($m.Name)"
+
+# a capture with no readable folders must not match anything
+$m = Get-WtfLayoutMatch -Capture (New-Cap @('',''))
+Check "a tab with no folders matches nothing"  ($null -eq $m) "$($m.Name)"
+
+foreach ($n in $zzNames) { $p = Get-WtfLayoutPath -Name $n; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force } }
+
 Write-Host ""
 if ($fail -eq 0) { Write-Host "ALL TESTS PASSED" -ForegroundColor Green }
 else { Write-Host "$fail TEST(S) FAILED" -ForegroundColor Red }
