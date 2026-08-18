@@ -483,7 +483,10 @@ function Invoke-WtfSnap {
     foreach ($r in $rows) {
         $run = $true
         if ($null -ne $r.run) { $run = [bool]$r.run }
-        $panes += @{ id = $r.id; dir = [string]$r.dir; command = [string]$r.command; run = $run }
+        # How far this pane is zoomed, as the height of one text row in pixels.
+        $cell = 0.0
+        if ($null -ne $r.cell) { try { $cell = [double]$r.cell } catch { } }
+        $panes += @{ id = $r.id; dir = [string]$r.dir; command = [string]$r.command; run = $run; cell = $cell }
     }
 
     $shell = 'powershell'

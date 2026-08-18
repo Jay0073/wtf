@@ -287,19 +287,33 @@ function Get-WtfWindowPanes {
 
         $text  = ''
         $focus = $false
+        $rows  = 0
         try { $focus = [bool]$p.Current.HasKeyboardFocus } catch { }
-        if ($WithText) {
-            try {
-                $tp   = $p.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
-                $text = $tp.DocumentRange.GetText(-1)
-            } catch { }
-        }
+        try {
+            $tp = $p.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
+            if ($WithText) { $text = $tp.DocumentRange.GetText(-1) }
+            # The visible range is exactly the viewport, blank lines included, so
+            # its line count is the number of text rows the pane is showing.
+            $vis = $tp.GetVisibleRanges()
+            if ($vis -and $vis.Count -gt 0) {
+                $rows = (($vis[0].GetText(-1)) -split "`r?`n").Count
+            }
+        } catch { }
+
+        # Pixels per text row. This is the pane's zoom, and it is the right thing
+        # to store: it does not change when the pane is resized, only when the
+        # font size does.
+        $cell = 0.0
+        if ($rows -gt 1) { $cell = [Math]::Round($r.Height / $rows, 2) }
+
         $panes += [pscustomobject]@{
             Index    = $panes.Count
             X        = [int]$r.X
             Y        = [int]$r.Y
             W        = [int]$r.Width
             H        = [int]$r.Height
+            Rows     = $rows
+            Cell     = $cell
             HasFocus = $focus
             Text     = $text
             Dir      = ''
@@ -692,6 +706,7 @@ function Get-WtfCaptureFromWindow {
             dir       = [string]$src.Dir
             dirSource = [string]$src.DirSource
             command   = ''
+            cell      = [double]$src.Cell
         }
     }
 
@@ -1152,6 +1167,7 @@ function Compare-WtfLayout {
         $rows = @()
         foreach ($p in $newPanes) {
             $rows += @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource; command = ''
+                        cell = $p.cell
                         run = $true; status = 'new'; oldDir = ''; oldCommand = ''; mustAsk = $true }
         }
         return @{ Rows = @($rows); Removed = @(); NeedsAttention = $true; IsFirst = $true }
@@ -1179,6 +1195,7 @@ function Compare-WtfLayout {
             if ([int]$match.id -ne [int]$p.id) { $status = 'moved' }
             $rows += @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
                         command = [string]$match.command; run = (Get-WtfPaneRun $match)
+                        cell = $p.cell
                         status = $status
                         oldDir = [string]$match.dir; oldCommand = [string]$match.command }
         } else {
@@ -1207,10 +1224,12 @@ function Compare-WtfLayout {
             $usedOld[[string]$cand.id] = $true
             $rows[$i] = @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
                            command = [string]$cand.command; run = (Get-WtfPaneRun $cand)
+                           cell = $p.cell
                            status = 'dirchanged'
                            oldDir = [string]$cand.dir; oldCommand = [string]$cand.command }
         } else {
             $rows[$i] = @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
+                           cell = $p.cell
                            command = ''; run = $true; status = 'new'; oldDir = ''; oldCommand = '' }
         }
     }
@@ -1302,18 +1321,20 @@ function Add-WtfRestoreSteps {
     $newId = [int]$State.NextWt
     $State.NextWt = $newId + 1
 
-    $bDir = ''
-    $bCmd = ''
-    $bRun = $true
+    $bDir  = ''
+    $bCmd  = ''
+    $bRun  = $true
+    $bCell = 0.0
     if ($bPane) {
-        $bDir = [string]$bPane.dir
-        $bCmd = [string]$bPane.command
-        $bRun = Get-WtfPaneRun $bPane
+        $bDir  = [string]$bPane.dir
+        $bCmd  = [string]$bPane.command
+        $bRun  = Get-WtfPaneRun $bPane
+        if ($null -ne $bPane.cell) { try { $bCell = [double]$bPane.cell } catch { } }
     }
 
     [void]$State.Steps.Add(@{
         kind = 'split'; split = $Node.dir; size = $newFrac
-        paneId = $bLeaf; dir = $bDir; command = $bCmd; run = $bRun
+        paneId = $bLeaf; dir = $bDir; command = $bCmd; run = $bRun; cell = $bCell
     })
     $State.Focused = $newId
 
@@ -1341,15 +1362,17 @@ function Build-WtfRestorePlan {
     $rootPane = $byId[[string]$rootLeaf]
 
     $steps = New-Object System.Collections.ArrayList
-    $rDir = ''
-    $rCmd = ''
-    $rRun = $true
+    $rDir  = ''
+    $rCmd  = ''
+    $rRun  = $true
+    $rCell = 0.0
     if ($rootPane) {
-        $rDir = [string]$rootPane.dir
-        $rCmd = [string]$rootPane.command
-        $rRun = Get-WtfPaneRun $rootPane
+        $rDir  = [string]$rootPane.dir
+        $rCmd  = [string]$rootPane.command
+        $rRun  = Get-WtfPaneRun $rootPane
+        if ($null -ne $rootPane.cell) { try { $rCell = [double]$rootPane.cell } catch { } }
     }
-    [void]$steps.Add(@{ kind = 'new-tab'; paneId = $rootLeaf; dir = $rDir; command = $rCmd; run = $rRun })
+    [void]$steps.Add(@{ kind = 'new-tab'; paneId = $rootLeaf; dir = $rDir; command = $rCmd; run = $rRun; cell = $rCell })
 
     $state = @{ Steps = $steps; NextWt = 1; Focused = 0; ById = $byId }
     Add-WtfRestoreSteps -State $state -Node $Layout.tree -WtPane 0
@@ -1454,6 +1477,147 @@ function Invoke-WtfWtCall {
     }
     Start-Process -FilePath 'wt.exe' -ArgumentList $Argv
     return $true
+}
+
+# ============================================================================
+# ZOOM
+# ============================================================================
+# Zoom in Windows Terminal is the font size of ONE pane, not of the tab: pressing
+# CTRL+MINUS changes the focused pane and leaves its neighbours alone. Verified.
+#
+# It can be measured. A pane's visible range is exactly its viewport, so its line
+# count is the number of text rows on screen, and height-in-pixels divided by rows
+# is the height of one text row. That number does not move when the pane is
+# resized - only when the font size changes - which makes it the right thing to
+# store.
+#
+# It cannot be set through wt.exe. `--fontSize` is accepted by the command line
+# parser and then ignored: three tabs launched at sizes 8, 14 and 22 all came out
+# with 31 rows in the same 710 pixels. The only way in is the keystroke the user
+# would press themselves, so that is what we send - after checking the terminal is
+# still the window in front, so the keys can never land somewhere else.
+
+function Get-WtfPaneCells {
+    <#
+    .SYNOPSIS
+        Row height in pixels for every pane of a window's active tab, in order.
+    #>
+    param([Parameter(Mandatory)][IntPtr]$Hwnd)
+    $out = @()
+    foreach ($p in @(Get-WtfWindowPanes -Hwnd $Hwnd)) { $out += [double]$p.Cell }
+    return $out
+}
+
+function Send-WtfZoomKey {
+    <#
+    .SYNOPSIS
+        Press CTRL+MINUS (or CTRL+PLUS) once, in the terminal window.
+    .DESCRIPTION
+        Refuses to press anything unless that window is the one in front, so a
+        keystroke can never land in whatever you switched to.
+    #>
+    param(
+        [Parameter(Mandatory)][IntPtr]$Hwnd,
+        [switch]$In
+    )
+    if ([WtfWin]::GetForegroundWindow() -ne $Hwnd) { return $false }
+    $key = '^{SUBTRACT}'
+    if ($In) { $key = '^{ADD}' }
+    try { [System.Windows.Forms.SendKeys]::SendWait($key) } catch { return $false }
+    Start-Sleep -Milliseconds 220
+    return $true
+}
+
+function Set-WtfPaneZoom {
+    <#
+    .SYNOPSIS
+        Zoom ONE pane until its rows are the height they were when the layout was
+        saved.
+    .DESCRIPTION
+        Closed loop rather than arithmetic: measure, press once in the direction
+        that helps, measure again. Font sizes step by whole points and row heights
+        land on whole pixels, so a calculated number of presses would be off as
+        often as not.
+    .OUTPUTS
+        $true when it lands within tolerance.
+    #>
+    param(
+        [Parameter(Mandatory)][IntPtr]$Hwnd,
+        [Parameter(Mandatory)][int]$PaneIndex,
+        [Parameter(Mandatory)][double]$Target,
+        [int]$MaxPresses = 14
+    )
+    if ($Target -le 0) { return $true }
+
+    for ($i = 0; $i -lt $MaxPresses; $i++) {
+        $cells = @(Get-WtfPaneCells -Hwnd $Hwnd)
+        if ($PaneIndex -ge $cells.Count) { return $false }
+        $now = [double]$cells[$PaneIndex]
+        if ($now -le 0) { return $false }
+
+        # Within half a pixel is as close as whole-pixel rows allow.
+        if ([Math]::Abs($now - $Target) -le 0.5) { return $true }
+
+        # One press past the target is closer than one press short of it, so stop
+        # when the next press would overshoot by more than it gains.
+        $ok = Send-WtfZoomKey -Hwnd $Hwnd -In:($now -lt $Target)
+        if (-not $ok) {
+            Write-WtfLayoutWarn "  zoom skipped - the terminal is no longer the window in front"
+            return $false
+        }
+    }
+    return $false
+}
+
+function Set-WtfLayoutZoom {
+    <#
+    .SYNOPSIS
+        Put every pane back at the zoom it was saved with.
+    .DESCRIPTION
+        Panes are addressed by their creation order, which is the order the
+        restore built them in and the same numbering `focus-pane --target` uses.
+        Skips the whole thing when nothing was saved, or when the panes are
+        already right - which is the normal case for a layout captured at the
+        default zoom.
+    #>
+    param(
+        [Parameter(Mandatory)][IntPtr]$Hwnd,
+        [Parameter(Mandatory)]$Plan,
+        [string]$WindowTarget = '0'
+    )
+    $wanted = @()
+    foreach ($step in $Plan) {
+        if ($step.kind -eq 'focus') { continue }
+        $c = 0.0
+        if ($null -ne $step.cell) { try { $c = [double]$step.cell } catch { } }
+        $wanted += $c
+    }
+    if (($wanted | Where-Object { $_ -gt 0 }).Count -eq 0) { return }
+
+    $cells = @(Get-WtfPaneCells -Hwnd $Hwnd)
+    $todo  = @()
+    for ($i = 0; $i -lt $wanted.Count -and $i -lt $cells.Count; $i++) {
+        if ($wanted[$i] -le 0) { continue }
+        if ([Math]::Abs($cells[$i] - $wanted[$i]) -le 0.5) { continue }
+        $todo += $i
+    }
+    if ($todo.Count -eq 0) { return }
+
+    if (-not ('System.Windows.Forms.SendKeys' -as [type])) {
+        try { Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop }
+        catch { Write-WtfLayoutWarn "  zoom skipped - could not load the keyboard helper"; return }
+    }
+
+    Write-WtfLayoutStep "setting zoom on $($todo.Count) pane(s) - do not type for a moment"
+    foreach ($i in $todo) {
+        [void](Invoke-WtfWtCall -Argv @('-w', $WindowTarget, 'focus-pane', '--target', [string]$i))
+        Start-Sleep -Milliseconds 350
+        if (-not (Set-WtfPaneZoom -Hwnd $Hwnd -PaneIndex $i -Target $wanted[$i])) {
+            Write-WtfLayoutWarn "  pane $($i + 1): could not reach the saved zoom"
+        }
+    }
+    # Leave the first pane focused, the way a fresh tab starts.
+    [void](Invoke-WtfWtCall -Argv @('-w', $WindowTarget, 'focus-pane', '--target', '0'))
 }
 
 function Invoke-WtfLayoutRestore {
@@ -1595,12 +1759,17 @@ function Invoke-WtfLayoutRestore {
         Write-WtfLayoutStep ("pane $paneNo/$total  " + (Format-WtfLayoutDir $dir))
     }
     $clock.Stop()
-
-    # Note which tab this became. The tab we just built is the active one, so a
-    # snapshot of it later needs no questions at all - which is the whole point
-    # of reopening a layout rather than rebuilding it by hand.
-    if ($hwnd -ne [IntPtr]::Zero) { [void](Set-WtfTabBinding -Hwnd $hwnd -Name $Name) }
-
     Write-WtfLayoutInfo ("rebuilt $total panes in " + [Math]::Round($clock.Elapsed.TotalSeconds, 1) + "s")
+
+    if ($hwnd -ne [IntPtr]::Zero) {
+        # Zoom last: every pane has to exist before any of them can be focused,
+        # and the numbering the zoom uses is the order they were built in.
+        Set-WtfLayoutZoom -Hwnd $hwnd -Plan $plan -WindowTarget $WindowTarget
+
+        # Note which tab this became. The tab we just built is the active one, so
+        # a snapshot of it later needs no questions at all - which is the whole
+        # point of reopening a layout rather than rebuilding it by hand.
+        [void](Set-WtfTabBinding -Hwnd $hwnd -Name $Name)
+    }
     return $true
 }

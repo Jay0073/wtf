@@ -145,6 +145,28 @@ for four panes.
 `wtf tab open [name]` does the same, and `wtf tab ls` prints every layout drawn
 out in full.
 
+### Zoom
+
+Panes are saved at the zoom you had them at, and rebuilt the same way.
+
+Zoom in Windows Terminal belongs to one pane, not to the tab: CTRL+MINUS shrinks
+the pane you are in and leaves the others alone. So each pane carries its own,
+and a tab where one pane is small and the rest are normal comes back exactly
+like that.
+
+It is stored as the height of one text row in pixels, because that number does
+not move when you resize the pane — only when the font size changes.
+
+Rebuilding sends the same CTRL+MINUS you would press yourself, because `wt.exe`
+has no way to set a font size. Two things follow from that:
+
+- It takes about a second, and you see `setting zoom - do not type for a moment`.
+- If you switch to another window while it is working, it stops rather than
+  typing into whatever you switched to, and tells you so.
+
+A layout saved before this existed has no zoom recorded, so nothing is sent and
+it opens at your normal size. Snap it once and the zoom is picked up.
+
 ### Which layout is this tab?
 
 Snapping the same tab twice should update that layout, not make a second one. So
@@ -290,7 +312,7 @@ pick from.
 
 | Command | What it does |
 |---|---|
-| `wtf snap [name]` | Saves the current tab as a layout: the pane tree, the split sizes, each pane's folder and command. A tab it has snapped before is recognised straight away and updated, with no name prompt. Draws the tab, then walks the panes asking for a command and whether it should run. Asks for a description. If the tab already belongs to a layout, this **updates** it. |
+| `wtf snap [name]` | Saves the current tab as a layout: the pane tree, the split sizes, each pane's folder, command and zoom. A tab it has snapped before is recognised straight away and updated, with no name prompt. Draws the tab, then walks the panes asking for a command and whether it should run. Asks for a description. If the tab already belongs to a layout, this **updates** it. |
 | `wtf tab ls` &nbsp;·&nbsp; `wtf tabs` | Lists every saved layout, each one **drawn** as boxes with its description. |
 | `wtf tab open [name]` &nbsp;·&nbsp; `wtf open [name]` | Rebuilds a layout as a new tab in the current window. With no name you get a picker: names on the left, the highlighted layout drawn beside them, description below. |
 | `wtf tab edit [name]` &nbsp;·&nbsp; `wtf edit [name]` | Opens the layout's JSON in your editor, to change commands or the `run` flag by hand. |

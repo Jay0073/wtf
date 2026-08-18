@@ -181,6 +181,41 @@ a real pane: the text sits at the prompt and produces no output.
 Version 1 layouts have no `run` field, and everything in them was written
 expecting to run, so a missing value reads as true.
 
+## Zoom
+
+Three things had to be established before any of this could be written, and two
+of them came out the opposite way to the obvious guess.
+
+**Zoom belongs to a pane, not a tab.** Sending CTRL+MINUS four times to a
+two-pane tab changed the focused pane from 31 rows to 47 and left its neighbour
+at 31. So the layout stores a zoom per pane.
+
+**It can be measured.** A pane's `TextPattern.GetVisibleRanges()` covers exactly
+the viewport, blank lines included, so its line count is the number of text rows
+on screen. Divide the pane's pixel height by that and you have the height of one
+text row: 22.9 px at the default, 15.11 px after four presses. The ratio, 0.66,
+is 8/12 — the font size really did go from 12 to 8. The row height is the right
+thing to store because it does not change when the pane is resized.
+
+**It cannot be set through wt.exe.** `--fontSize` is accepted by the command line
+parser and then ignored. Three tabs in one window launched at sizes 8, 14 and 22
+all came out with 31 rows in the same 710 pixels. So the restore sends the same
+CTRL+MINUS the user would press.
+
+`Set-WtfPaneZoom` is a closed loop rather than arithmetic: measure, press once in
+the direction that helps, measure again. Font sizes step by whole points and row
+heights land on whole pixels, so a calculated number of presses would be wrong as
+often as right. It stops within half a pixel, or after 14 presses.
+
+`Send-WtfZoomKey` refuses to press anything unless the terminal is still the
+window in front. Without that check a keystroke could land in whatever the user
+switched to. The zoom pass is skipped entirely when no pane has a zoom recorded,
+which is every layout saved before this existed.
+
+Panes are addressed by creation order, which is what `focus-pane --target` takes
+and the order the restore built them in, so the mapping is exact. The first pane
+is focused again at the end, the way a fresh tab starts.
+
 ## Knowing which layout a tab is
 
 Update-not-overwrite is only useful if the tool can tell which layout a tab is.
@@ -351,6 +386,10 @@ stop the failure happening, not only clean up after it.
 - `test-layout-core.ps1` — 40 unit tests: name rules, geometry to tree, restore
   plan, launch-argument encoding, all four diff cases, JSON round trip. Passes on
   both hosts.
+- `test-zoom.ps1` — 12 tests on real tabs: zooming one pane leaves its neighbour
+  alone, the capture records both, it survives the JSON round trip and the
+  restore plan, a rebuilt tab lands on the same row heights, and a layout with no
+  zoom saved asks for none.
 - `test-tabid.ps1` — 23 tests on a real terminal tab: the id is stable across
   processes, across a hand-added pane, across a program renaming the tab, across
   tab switches; a second tab differs; a note survives all of it; a stale or dead
