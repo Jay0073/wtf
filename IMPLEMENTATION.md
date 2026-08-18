@@ -64,6 +64,23 @@ opens its own console, which takes the foreground before any code runs. It falls
 back to the topmost terminal window, which `EnumWindows` returns first because it
 walks in Z-order.
 
+**Writing the .lnk does not register anything.** Windows registers the key with
+`RegisterHotKey` only once Explorer has read the file, and nothing tells Explorer
+to read it. When it does not, the key is completely dead and no error appears
+anywhere - not in the shortcut, not in an event log.
+
+This is observable: `RegisterHotKey` fails with 1409 when a combination is
+already held. So trying to register it yourself is a reliable test. A working
+hotkey probes as *taken* (Explorer holds it); a dead one probes as *free*. That
+is precisely how the ALT+SHIFT+S failure was identified — ALT+SHIFT+O probed as
+taken while ALT+SHIFT+S probed as free, which ruled out any theory about another
+app stealing the key.
+
+Installing therefore: writes the shortcut, calls `SHChangeNotify(SHCNE_CREATE)`,
+polls until the combination shows as registered, retries once by deleting and
+rewriting, and only then reports success. `wtf hotkey status` runs the same
+check, so a key that has gone dead is visible rather than mysterious.
+
 ## How capture works
 
 Windows Terminal has no API to report its panes, so the accessibility tree is
@@ -146,6 +163,10 @@ a folder change, with the old folder and command shown, so the call stays yours.
 - **git on 5.1.** `ProcessStartInfo.ArgumentList` is .NET Core only; on .NET
   Framework it is `$null`, so every git call threw. There is now a fallback that
   builds a correctly quoted command line.
+- **A hotkey that installed but never fired.** The shortcut file was written
+  correctly, with the right key on it, and did nothing — because Explorer had
+  never read the file, so Windows had registered no key at all. Nothing reported
+  a problem. Install now notifies the shell and verifies the registration.
 
 ## Testing
 

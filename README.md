@@ -195,6 +195,20 @@ split, `ALT+SHIFT+arrows` to resize.
 If an application does bind one of them, that application wins while it has
 focus. Rebind with `wtf hotkey install snap CTRL+ALT+S`.
 
+**Installing verifies itself.** Writing the shortcut file is not enough: Windows
+only registers the key once Explorer has read the file, and if it never does the
+key is dead with no error shown anywhere. So `wtf hotkey install` tells the
+shell about the new shortcut, then checks that the combination really is
+registered, retries once, and tells you plainly if it still is not — rather than
+reporting success for a key that does nothing.
+
+`wtf hotkey status` reports the same thing, so if a key ever stops working:
+
+```powershell
+wtf hotkey status     # says NOT registered when the key is dead
+wtf hotkey install    # rewrites it and verifies
+```
+
 ## Files
 
 | Path | What it is |
