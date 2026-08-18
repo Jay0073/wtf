@@ -201,27 +201,60 @@ Other commands: `wtf add`, `wtf remove`, `wtf delete`, `wtf list`, `wtf status`,
 
 ## All commands
 
-```
-wtf create  [ctx proj branch apps...] [--dry-run]   make worktrees, print the paths
-wtf add     [ctx proj branch apps...] [--dry-run]   add repos/deps to a feature
-wtf remove  [ctx proj branch apps...] [--force]     drop repos/deps from a feature
-wtf delete  [ctx proj branch] [--force] [--dry-run] tear a whole feature down
-wtf list                                            every active feature
-wtf status  [ctx proj branch]                       git state + plan progress
-wtf doctor  [--fix]                                 find and repair leftovers
-wtf config                                          set up roots and repo groups
+Every argument is optional. Leave one out and you are asked, or given a list to
+pick from.
 
-wtf snap    [name] [--without-me]                   save THIS tab as a layout
-wtf tab ls                                          list saved layouts
-wtf tab open [name]                                 rebuild a layout in a new tab
-wtf tab edit [name]                                 edit a layout's commands
-wtf tab rm  [name]                                  delete a layout
+### Worktrees
 
-wtf hotkey install [snap|open] [COMBO]              defaults: ALT+SHIFT+S / ALT+SHIFT+O
-wtf hotkey status | remove [snap|open]
-```
+| Command | What it does |
+|---|---|
+| `wtf create [ctx proj branch apps...]` | Asks root folder, project, branch and repos. Creates the git worktrees, copies the gitignored files a worktree would miss (`.env`, local config, certs), links read-along dependency repos, scaffolds `.plan/`, then **prints the paths and stops**. Opens nothing. |
+| `wtf add [ctx proj branch apps...]` | Adds more repos or dependency repos to a feature that already exists. |
+| `wtf remove [ctx proj branch apps...]` | Drops repos or dependencies from a feature, leaving the rest intact. Offers to delete the local branch for each repo removed. |
+| `wtf delete [ctx proj branch]` | Tears a whole feature down: worktrees, junctions, the feature folder and its bookkeeping. |
+| `wtf list` &nbsp;·&nbsp; `wtf ls` | Every active feature, with each repo's git state (clean / dirty / ahead / behind) and its path. |
+| `wtf status [ctx proj branch]` | One feature in detail: per-repo git state, plus `.plan/` progress (how many steps are ticked off). |
+| `wtf doctor` | Finds leftovers — ghost worktree records, orphaned folders, stale files — and reports them. |
+| `wtf config` | Interactive menu: add root folders (personal, work), define multi-repo groups, rename or remove them, show everything. |
+| `wtf config edit` | Opens `config.json` in your editor directly. |
 
-Leave a name out of any layout command and you get a list to pick from.
+### Tab layouts
+
+| Command | What it does |
+|---|---|
+| `wtf snap [name]` | Saves the current tab as a layout: the pane tree, the split sizes, each pane's folder and command. Draws the tab, then walks the panes asking for a command and whether it should run. Asks for a description. If the tab already belongs to a layout, this **updates** it. |
+| `wtf tab ls` &nbsp;·&nbsp; `wtf tabs` | Lists every saved layout, each one **drawn** as boxes with its description. |
+| `wtf tab open [name]` &nbsp;·&nbsp; `wtf open [name]` | Rebuilds a layout as a new tab in the current window. With no name you get a picker: names on the left, the highlighted layout drawn beside them, description below. |
+| `wtf tab edit [name]` &nbsp;·&nbsp; `wtf edit [name]` | Opens the layout's JSON in your editor, to change commands or the `run` flag by hand. |
+| `wtf tab rm [name]` | Deletes a layout, after confirming. |
+| `wtf tab save [name]` | Same as `wtf snap`. |
+
+### Hotkeys
+
+| Command | What it does |
+|---|---|
+| `wtf hotkey install` | Installs both: **ALT+SHIFT+S** to snap the tab in front, **ALT+SHIFT+O** to open a layout. Verifies Windows really registered each key rather than assuming it. |
+| `wtf hotkey install snap <COMBO>` | Rebinds just the snap key, e.g. `wtf hotkey install snap CTRL+ALT+S`. |
+| `wtf hotkey install open <COMBO>` | Rebinds just the open key. |
+| `wtf hotkey status` | Shows both shortcuts and whether Windows has actually registered them. |
+| `wtf hotkey remove [snap\|open]` | Removes one hotkey, or both if you name neither. |
+
+### Flags
+
+| Flag | Applies to | Meaning |
+|---|---|---|
+| `--dry-run` | `create`, `add`, `remove`, `delete` | Show what would happen; change nothing. |
+| `--force` | `remove`, `delete` | Skip the confirmation prompts. |
+| `--fix` | `doctor` | Repair what it finds, instead of only reporting. |
+| `--without-me` | `snap` | Leave out the pane you typed the command in — for when you opened a scratch pane just to run it. |
+| `--foreground` | `snap` | Capture the window in front rather than the one this shell is in. This is how the hotkey calls it. |
+
+### The two keys you will actually use
+
+| Key | What happens |
+|---|---|
+| **ALT+SHIFT+S** | Saves the tab in front. Needs no free pane, and types nothing into yours. |
+| **ALT+SHIFT+O** | Shows the layout picker and rebuilds the one you choose as a new tab. |
 
 ## About the hotkeys
 
