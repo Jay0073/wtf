@@ -29,6 +29,7 @@ the agent window, agent slots, `wtf open` (feature), `wtf edit` (slots),
 | `wtf.ps1` | worktree engine, shared UI, dispatcher; loads the others |
 | `wtf-layout.ps1` | capture, directory resolution, geometry to tree, diff, restore |
 | `wtf-tab.ps1` | `snap`, `tab ls/open/edit/rm`, pane editor, picker |
+| `tab-bindings.json` | which open tab is which layout (local, gitignored) |
 | `wtf-map.ps1` | draws a layout as boxes |
 | `wtf-prefill.ps1` | dot-sourced BY a restored pane, to type a command unrun |
 | `wtf-hotkey.ps1` | install/remove the global hotkeys |
@@ -182,23 +183,59 @@ expecting to run, so a missing value reads as true.
 
 ## Knowing which layout a tab is
 
-Update-not-overwrite is only useful if the tool can tell which layout a tab
-belongs to. There are three routes, tried in order.
+Update-not-overwrite is only useful if the tool can tell which layout a tab is.
 
-The name on the command line is the first. The tab title is the second: a
-restore pins the layout name on every pane, so any tab `wtf tab open` built
-answers exactly. Verified with a probe — the tab title even survives a pane the
-user adds by hand, because `new-tab --title` pins the title at the tab level
-rather than letting it follow the focused pane.
+The tab title was the answer, and it is not good enough. A restore pins the
+layout name on every pane with `--suppressApplicationTitle`, which holds until
+the user adds a pane by hand. That pane is not suppressed, its program renames
+itself, and the tab title goes with it. Measured: a tab built as `ZZQ-LAYOUT`
+read back as `powershell` after one hand-added pane. `--title` on its own, with
+no suppression, never held at all — the shell overwrote it within seconds.
 
-But a tab arranged by hand and snapped in place never gets a name written onto
-it, because snapping does not rename your tab. That was the hole: the first snap
-saved the layout, and the second snap of the same tab found no identity and
-started a new one.
+Windows Terminal has nowhere to store an id of our own. No per-tab field, nothing
+the CLI can set. But a tab already has one: its UIA RuntimeId. Verified in
+`tests/test-tabid.ps1`, on a real tab, it is the same:
 
-`Get-WtfLayoutMatch` closes it by comparing folders. Over a working day panes
-are added and closed and the shape moves, but the folders stay, which makes them
-the part worth matching on. Split direction, sizes and pane order are ignored.
+- read twice in one process
+- read from a separate process
+- after a pane is added by hand
+- after a program renames the tab
+- after a second tab is opened
+- after switching away and back
+- after a neighbouring tab is closed
+
+and different for every tab.
+
+So `tab-bindings.json` maps a tab id to a layout name. `Get-WtfBoundLayout` reads
+it, `Set-WtfTabBinding` writes it — from `wtf snap` after a save, and from the
+restore once the new tab exists.
+
+Two things make it safe rather than merely convenient:
+
+**Stale ids cannot mislead.** Ids come from a counter, so after Windows Terminal
+restarts a fresh tab can be handed a number an old note still claims. Each note
+records the terminal's process id AND when that process started, and a note is
+only trusted when both still match. `Remove-WtfDeadBindings` sweeps out notes
+whose terminal is gone, and notes for layouts that were deleted.
+
+**One layout is never bound to two tabs.** Writing a note drops any older note
+for the same layout, so reopening a layout moves the note rather than leaving a
+second one behind.
+
+The start time is stored as **ticks, not a date string**. PowerShell 7's
+`ConvertFrom-Json` turns anything that looks like a date back into a `DateTime`,
+so a string written on 5.1 read back on 7 in a different format and never
+compared equal. Four tests failed on 7 and passed on 5.1 until this was changed;
+`test-tabid.ps1` now writes a note on one host and reads it on the other.
+
+Below the note, the older routes remain: the tab title, then folder matching.
+
+## Recognising a tab by its folders
+
+The fallback when there is no note — a tab arranged by hand after a restart, for
+instance. Over a working day panes are added and closed and the shape moves, but
+the folders stay, which makes them the part worth matching on. Split direction,
+sizes and pane order are ignored.
 
 Folders are compared as a multiset, so a layout with two panes in one folder
 needs two panes in that folder to score both. The score is
@@ -221,12 +258,6 @@ Measured against the real saved layouts:
 
 It always asks. A wrong guess costs one keypress; a wrong silent save costs a
 layout.
-
-Not done on purpose: writing the layout name onto a hand-built tab after
-snapping, so route 2 would work next time. `--suppressApplicationTitle` cannot
-be applied to a pane that already exists, so an agent CLI would overwrite the
-title whenever it repainted, and the identity would work for plain shells and
-fail for exactly the panes that matter most.
 
 ## Update, not overwrite
 
@@ -288,6 +319,13 @@ stop the failure happening, not only clean up after it.
 - **git on 5.1.** `ProcessStartInfo.ArgumentList` is .NET Core only; on .NET
   Framework it is `$null`, so every git call threw. There is now a fallback that
   builds a correctly quoted command line.
+- **Identity that an agent could erase.** A restored tab was recognised by its
+  title, and one pane added by hand was enough to lose it: the program in that
+  pane renamed itself and the tab followed. The tab's own runtime id replaced it.
+- **A date that changed shape between hosts.** The terminal start time was stored
+  as an ISO string. PowerShell 7 parses those back into `DateTime` on read, so a
+  note written on 5.1 never compared equal on 7 and every binding silently failed
+  there. Ticks are a number and survive both.
 - **A tab that could not be recognised.** Snapping a hand-built tab saved the
   layout but wrote nothing onto the tab, so the next snap of that same tab found
   no identity and started a second layout. Adding a pane and re-snapping — the
@@ -313,6 +351,11 @@ stop the failure happening, not only clean up after it.
 - `test-layout-core.ps1` — 40 unit tests: name rules, geometry to tree, restore
   plan, launch-argument encoding, all four diff cases, JSON round trip. Passes on
   both hosts.
+- `test-tabid.ps1` — 23 tests on a real terminal tab: the id is stable across
+  processes, across a hand-added pane, across a program renaming the tab, across
+  tab switches; a second tab differs; a note survives all of it; a stale or dead
+  terminal voids a note; a note written on one host reads on the other. Passes on
+  both.
 - `test-layout-core.ps1` section 12 — 20 tests for recognising a tab: unchanged,
   a pane added, a pane closed, both at once, an unrelated tab, the closer of two
   layouts, duplicate folders as a multiset, and the threshold itself.

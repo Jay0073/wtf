@@ -698,6 +698,8 @@ function Get-WtfCaptureFromWindow {
     $tabs = Get-WtfWindowTabs -Hwnd $Hwnd
     return @{
         TabName = $tabs.SelectedName
+        TabId   = (Get-WtfActiveTabId -Hwnd $Hwnd)
+        Hwnd    = $Hwnd
         Panes   = @($panes)
         Tree    = (Rename-WtfTreeIds -Node $tree -Map $map)
     }
@@ -774,6 +776,213 @@ function Find-WtfLayoutName {
         if ($n -and $n.ToLower() -eq $Name.ToLower()) { return $n }
     }
     return ''
+}
+
+# ============================================================================
+# WHICH LAYOUT IS THIS TAB? — the binding notebook
+# ============================================================================
+# The tab title used to be the answer, and it is not good enough: a pane you add
+# by hand runs a program that renames itself, and the title is gone.
+#
+# Windows gives every tab a runtime id of its own. We cannot choose it and it is
+# never shown to you, but it is exactly what is needed: it stays the same while
+# panes are added and closed, while tabs are switched, while a neighbouring tab
+# is closed, and it reads the same from any process. Every tab has a different
+# one. All of that is verified in tests/test-tabid.ps1.
+#
+# So we do not invent an id. We write down which layout a tab already belongs to:
+#
+#     tab 42.852866.4.368  ->  pgn-re
+#
+# The id only lives as long as Windows Terminal does, which is why each note also
+# records the terminal it was taken in. When the terminal is gone, so is the note.
+
+$script:WtfBindFile = Join-Path $script:WtfRoot 'tab-bindings.json'
+
+function Get-WtfActiveTabId {
+    <#
+    .SYNOPSIS
+        The runtime id of a window's ACTIVE tab, as a string, or ''.
+    #>
+    param([Parameter(Mandatory)][IntPtr]$Hwnd)
+    try {
+        $el = [System.Windows.Automation.AutomationElement]::FromHandle($Hwnd)
+        if (-not $el) { return '' }
+        $cond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+            [System.Windows.Automation.ControlType]::TabItem)
+        $found = $el.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+        for ($i = 0; $i -lt $found.Count; $i++) {
+            $t = $found.Item($i)
+            try {
+                $sp = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+                if ($sp.Current.IsSelected) { return (($t.GetRuntimeId()) -join '.') }
+            } catch { }
+        }
+        # A single-tab window may not report a selection; there is only one answer.
+        if ($found.Count -eq 1) { return (($found.Item(0).GetRuntimeId()) -join '.') }
+    } catch { }
+    return ''
+}
+
+function Get-WtfTerminalStamp {
+    <#
+    .SYNOPSIS
+        Which Windows Terminal is this, and is it the same one as before?
+    .DESCRIPTION
+        A runtime id is only meaningful inside the terminal it was read in. Ids
+        are handed out from a counter, so after the terminal restarts a fresh tab
+        can be given a number an old note still claims. Recording the process and
+        WHEN it started makes that impossible: a restarted terminal has a new
+        start time even if Windows reuses the process id.
+    .OUTPUTS
+        @{ Pid; Start } — Start is the start time in ticks, or 0 if unreadable.
+    .NOTES
+        Ticks, not a date string. PowerShell 7's ConvertFrom-Json turns anything
+        that looks like a date back into a DateTime, so a string written on 5.1
+        and read on 7 came back in a different format and never compared equal.
+        A plain number survives both.
+    #>
+    param([Parameter(Mandatory)][IntPtr]$Hwnd)
+    $out = @{ Pid = 0; Start = [long]0 }
+    try {
+        $el = [System.Windows.Automation.AutomationElement]::FromHandle($Hwnd)
+        if (-not $el) { return $out }
+        $out.Pid = [int]$el.Current.ProcessId
+    } catch { return $out }
+    if ($out.Pid -le 0) { return $out }
+    $out.Start = Get-WtfProcessStartTicks -ProcessId $out.Pid
+    return $out
+}
+
+function Get-WtfProcessStartTicks {
+    # When a process started, in ticks. 0 when it is not running.
+    param([Parameter(Mandatory)][int]$ProcessId)
+    try { return [long](Get-Process -Id $ProcessId -ErrorAction Stop).StartTime.Ticks }
+    catch { return [long]0 }
+}
+
+function Read-WtfTabBindings {
+    # @{ tabId = @{ layout; wtPid; wtStart } }
+    if (-not (Test-Path -LiteralPath $script:WtfBindFile)) { return @{} }
+    try {
+        $json = Get-Content -LiteralPath $script:WtfBindFile -Raw -Encoding UTF8
+        if (-not $json.Trim()) { return @{} }
+        $h = ConvertTo-WtfHashtable (ConvertFrom-Json $json)
+        if ($h -is [hashtable]) { return $h }
+    } catch {
+        Write-WtfLog "BIND could not read $($script:WtfBindFile): $_"
+    }
+    return @{}
+}
+
+function Write-WtfTabBindings {
+    param([Parameter(Mandatory)]$Bindings)
+    try {
+        $json = $Bindings | ConvertTo-Json -Depth 6
+        Set-Content -LiteralPath $script:WtfBindFile -Value $json -Encoding UTF8
+    } catch {
+        Write-WtfLog "BIND could not write $($script:WtfBindFile): $_"
+    }
+}
+
+function Remove-WtfDeadBindings {
+    <#
+    .SYNOPSIS
+        Drop notes whose terminal is gone, and notes for layouts that no longer
+        exist. Keeps the file from growing and stops a stale id ever matching.
+    .OUTPUTS
+        The cleaned bindings.
+    #>
+    param($Bindings, $LayoutNames = $null)
+    if (-not $Bindings) { return @{} }
+    if ($null -eq $LayoutNames) { $LayoutNames = @(Get-WtfLayoutNames) }
+    $known = @($LayoutNames)
+
+    $live = @{}   # pid -> start time, read once
+    $out  = @{}
+    foreach ($k in @($Bindings.Keys)) {
+        $b = $Bindings[$k]
+        if (-not $b) { continue }
+        $nm = [string]$b.layout
+        if (-not $nm) { continue }
+        if ($known -notcontains $nm) { continue }
+
+        $bpid = 0
+        try { $bpid = [int]$b.wtPid } catch { }
+        if ($bpid -le 0) { continue }
+        if (-not $live.ContainsKey($bpid)) { $live[$bpid] = Get-WtfProcessStartTicks -ProcessId $bpid }
+        if ($live[$bpid] -eq 0) { continue }                        # process gone
+        $was = [long]0
+        try { $was = [long]$b.wtStart } catch { }
+        if ($live[$bpid] -ne $was) { continue }                     # restarted, id reused
+        $out[$k] = $b
+    }
+    return $out
+}
+
+function Get-WtfBoundLayout {
+    <#
+    .SYNOPSIS
+        Which layout is the active tab of this window? '' when nothing is noted.
+    #>
+    param([Parameter(Mandatory)][IntPtr]$Hwnd)
+    $id = Get-WtfActiveTabId -Hwnd $Hwnd
+    if (-not $id) { return '' }
+
+    $all = Remove-WtfDeadBindings -Bindings (Read-WtfTabBindings)
+    if (-not $all.ContainsKey($id)) { return '' }
+
+    $stamp = Get-WtfTerminalStamp -Hwnd $Hwnd
+    $b = $all[$id]
+    if ([int]$b.wtPid -ne [int]$stamp.Pid) { return '' }
+    $was = [long]0
+    try { $was = [long]$b.wtStart } catch { }
+    if ($was -ne [long]$stamp.Start) { return '' }
+
+    $name = Find-WtfLayoutName -Name ([string]$b.layout)
+    if (-not $name) { return '' }
+    Write-WtfLog "BIND tab $id is layout '$name'"
+    return $name
+}
+
+function Set-WtfTabBinding {
+    <#
+    .SYNOPSIS
+        Note that this window's active tab is this layout.
+    .DESCRIPTION
+        Also drops any older note pointing at the same layout, so one layout is
+        never bound to two tabs at once - reopening a layout moves the note to
+        the new tab rather than leaving the old one behind.
+    #>
+    param(
+        [Parameter(Mandatory)][IntPtr]$Hwnd,
+        [Parameter(Mandatory)][string]$Name
+    )
+    $id = Get-WtfActiveTabId -Hwnd $Hwnd
+    if (-not $id) { Write-WtfLog "BIND no tab id for window $Hwnd"; return $false }
+    $stamp = Get-WtfTerminalStamp -Hwnd $Hwnd
+    if ($stamp.Pid -le 0 -or $stamp.Start -le 0) { Write-WtfLog "BIND no terminal stamp"; return $false }
+
+    $all = Remove-WtfDeadBindings -Bindings (Read-WtfTabBindings)
+    foreach ($k in @($all.Keys)) {
+        if ([string]$all[$k].layout -eq $Name) { $all.Remove($k) }
+    }
+    $all[$id] = @{ layout = $Name; wtPid = $stamp.Pid; wtStart = $stamp.Start }
+    Write-WtfTabBindings -Bindings $all
+    Write-WtfLog "BIND tab $id -> '$Name'"
+    return $true
+}
+
+function Remove-WtfTabBinding {
+    # Forget every note for one layout — used when a layout is deleted.
+    param([Parameter(Mandatory)][string]$Name)
+    $all = Read-WtfTabBindings
+    $changed = $false
+    foreach ($k in @($all.Keys)) {
+        if ([string]$all[$k].layout -eq $Name) { $all.Remove($k); $changed = $true }
+    }
+    if ($changed) { Write-WtfTabBindings -Bindings $all }
 }
 
 function Get-WtfDirKey {
@@ -1386,6 +1595,12 @@ function Invoke-WtfLayoutRestore {
         Write-WtfLayoutStep ("pane $paneNo/$total  " + (Format-WtfLayoutDir $dir))
     }
     $clock.Stop()
+
+    # Note which tab this became. The tab we just built is the active one, so a
+    # snapshot of it later needs no questions at all - which is the whole point
+    # of reopening a layout rather than rebuilding it by hand.
+    if ($hwnd -ne [IntPtr]::Zero) { [void](Set-WtfTabBinding -Hwnd $hwnd -Name $Name) }
+
     Write-WtfLayoutInfo ("rebuilt $total panes in " + [Math]::Round($clock.Elapsed.TotalSeconds, 1) + "s")
     return $true
 }

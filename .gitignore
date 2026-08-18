@@ -8,6 +8,10 @@ config.json
 # your saved tab layouts, with real paths
 layouts/
 
+# which open tab is which layout - only meaningful on this machine, in this
+# run of Windows Terminal
+tab-bindings.json
+
 # per-run logs, which record real paths, branches and git output
 logs/
 

@@ -366,21 +366,29 @@ function Invoke-WtfSnap {
 
     # Decide which layout this is.
     #
-    # Three ways, in order of how certain they are:
+    # Four ways, in order of how certain they are:
     #   1. you named it on the command line
-    #   2. the tab title is a layout name - true for any tab `wtf tab open` built
-    #   3. the folders look like a layout you already have - which is the case
-    #      for a tab you arranged by hand and snapped in place, because nothing
-    #      ever wrote a name onto it
+    #   2. this tab is noted as that layout - exact, and survives the title being
+    #      renamed by whatever is running in a pane
+    #   3. the tab title is a layout name - only holds until a hand-added pane
+    #      renames the tab, so it sits below the note
+    #   4. the folders look like a layout you already have - a guess, so it asks
     $layoutName = ''
     if ($Name) {
         $existing = Find-WtfLayoutName -Name $Name
         if ($existing) { $layoutName = $existing } else { $layoutName = $Name.Trim() }
     } else {
-        $fromTab = Find-WtfLayoutName -Name $cap.TabName
-        if ($fromTab) {
-            $layoutName = $fromTab
-            Write-WtfLayoutInfo "this tab is layout '$fromTab' - updating it"
+        $bound = ''
+        if ($target.Hwnd -ne [IntPtr]::Zero) { $bound = Get-WtfBoundLayout -Hwnd $target.Hwnd }
+        if ($bound) {
+            $layoutName = $bound
+            Write-WtfLayoutInfo "this tab is layout '$bound' - updating it"
+        } else {
+            $fromTab = Find-WtfLayoutName -Name $cap.TabName
+            if ($fromTab) {
+                $layoutName = $fromTab
+                Write-WtfLayoutInfo "this tab is layout '$fromTab' - updating it"
+            }
         }
     }
 
@@ -484,6 +492,9 @@ function Invoke-WtfSnap {
     $obj  = New-WtfLayoutObject -Name $layoutName -Panes $panes -Tree $cap.Tree `
                                 -Shell $shell -Description $description
     $path = Write-WtfLayout -Name $layoutName -Layout $obj
+
+    # Remember which tab this was, so the next snap of it needs no questions.
+    if ($target.Hwnd -ne [IntPtr]::Zero) { [void](Set-WtfTabBinding -Hwnd $target.Hwnd -Name $layoutName) }
 
     $verb = 'saved'
     if ($saved) { $verb = 'updated' }
@@ -735,6 +746,7 @@ function Invoke-WtfTabRemove {
         return
     }
     Remove-Item -LiteralPath (Get-WtfLayoutPath -Name $n) -Force
+    Remove-WtfTabBinding -Name $n
     Write-WtfLayoutOk "deleted '$n'"
 }
 

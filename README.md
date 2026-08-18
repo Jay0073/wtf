@@ -147,34 +147,55 @@ out in full.
 
 ### Which layout is this tab?
 
-Snapping the same tab twice should update the layout, not make a second one.
-So the tool has to know which layout a tab belongs to. It works this out in
-three ways, in order of how certain they are:
+Snapping the same tab twice should update that layout, not make a second one. So
+the tool has to answer one question first: **have I seen this tab before?**
 
-1. **You said so.** `wtf snap <name>`.
-2. **The tab title.** A tab that `wtf tab open` built carries the layout name as
-   its title, on every pane. That is exact and instant.
-3. **The folders.** A tab you arranged by hand and snapped in place has an
-   ordinary title, because snapping does not rename your tab. So the folders are
-   compared against every saved layout instead.
+It used to answer by reading the tab title. That is not good enough. As soon as
+you add a pane by hand and run an agent in it, the program renames the tab and
+the only clue is gone.
 
-The third one is the one that matters day to day. Panes get added and closed as
-work moves on, but the folders you work in stay the same, which makes them the
-part worth matching on. Shape, sizes and pane order are all ignored.
+Windows gives every tab a runtime id of its own. You never see it, and we do not
+get to choose it, but it is exactly what is needed. It stays the same while panes
+are added and closed, while you switch tabs and come back, while a neighbouring
+tab is closed, and while a program renames the tab. Every tab has a different one.
+
+So the tool keeps a small notebook, `tab-bindings.json`:
 
 ```
-▌ This looks like 'pgn-re'
-  3 of 4 panes are in the same folders - 1 pane(s) added since
-  <the saved layout, drawn>
-
-  ? Update 'pgn-re' with this tab? [Y/n]
+tab 42.852866.4.368  ->  pgn-re
+tab 42.852866.4.415  ->  wtf-citedspy
 ```
 
-Say no and it offers the next closest, up to three, then the full list, then a
-new name. Nothing is decided quietly.
+The first snap of a tab asks for a name and writes the note. Every snap after
+that reads the id, finds the note, and goes straight to what changed:
 
-A match needs at least half the panes to line up, counting the larger side. One
-folder in common is not enough — your home folder is in almost every layout.
+```
+▌ Changes to 'pgn-re' since it was saved
+  pane 1  same       C:\Users\jay\Documents\projects\pigeon-resume
+  pane 2  same       C:\Users\jay\Documents\projects\freellmapi
+  pane 3  same       C:\Users\jay\Documents\projects\pigeon-resume
+  pane 4  NEW        C:\Users\jay\Documents\projects\pigeon-claw
+
+  ? pane 4 has no command. What should it run?
+```
+
+No name prompt, no guessing, no list. `wtf tab open` writes the note too, for the
+tab it just built, so a reopened layout is bound from the moment it appears.
+
+**The one limit.** The id only lives as long as Windows Terminal does. Closing
+the terminal or restarting the machine forgets every note. Reopening a layout
+with `wtf tab open` writes a fresh note straight away, so in normal use you never
+notice. Only if you rebuild the same panes by hand after a restart does it have
+to ask once.
+
+Each note also records which terminal it was taken in, and when that terminal
+started. A note from a terminal that has since restarted is thrown away rather
+than trusted, so a recycled id can never point at the wrong tab.
+
+**If there is no note**, it falls back: first the tab title, then the folders the
+panes are in. Folder matching is a guess, so it shows you the layout it thinks
+this is and asks. A match needs at least half the panes to line up — one folder
+in common is not enough, since your home folder is in almost every layout.
 
 ### Changing one
 
@@ -269,7 +290,7 @@ pick from.
 
 | Command | What it does |
 |---|---|
-| `wtf snap [name]` | Saves the current tab as a layout: the pane tree, the split sizes, each pane's folder and command. Recognises a tab it has seen before by its title or its folders, and offers to update that layout. Draws the tab, then walks the panes asking for a command and whether it should run. Asks for a description. If the tab already belongs to a layout, this **updates** it. |
+| `wtf snap [name]` | Saves the current tab as a layout: the pane tree, the split sizes, each pane's folder and command. A tab it has snapped before is recognised straight away and updated, with no name prompt. Draws the tab, then walks the panes asking for a command and whether it should run. Asks for a description. If the tab already belongs to a layout, this **updates** it. |
 | `wtf tab ls` &nbsp;·&nbsp; `wtf tabs` | Lists every saved layout, each one **drawn** as boxes with its description. |
 | `wtf tab open [name]` &nbsp;·&nbsp; `wtf open [name]` | Rebuilds a layout as a new tab in the current window. With no name you get a picker: names on the left, the highlighted layout drawn beside them, description below. |
 | `wtf tab edit [name]` &nbsp;·&nbsp; `wtf edit [name]` | Opens the layout's JSON in your editor, to change commands or the `run` flag by hand. |
