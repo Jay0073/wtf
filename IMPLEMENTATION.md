@@ -29,6 +29,8 @@ the agent window, agent slots, `wtf open` (feature), `wtf edit` (slots),
 | `wtf.ps1` | worktree engine, shared UI, dispatcher; loads the others |
 | `wtf-layout.ps1` | capture, directory resolution, geometry to tree, diff, restore |
 | `wtf-tab.ps1` | `snap`, `tab ls/open/edit/rm`, pane editor, picker |
+| `wtf-map.ps1` | draws a layout as boxes |
+| `wtf-prefill.ps1` | dot-sourced BY a restored pane, to type a command unrun |
 | `wtf-hotkey.ps1` | install/remove the global hotkeys |
 | `wtf-snap-hotkey.ps1` | what ALT+SHIFT+S runs |
 | `wtf-open-hotkey.ps1` | what ALT+SHIFT+O runs |
@@ -142,6 +144,42 @@ focused pane's title, so unless all of them are pinned the tab name reverts as
 soon as focus moves — and the tab name is what tells a later snapshot which
 layout this tab is.
 
+## Drawing the layout
+
+A pane number tells you nothing about where the pane is, and nesting makes it
+worse. So every place that lists panes also draws them.
+
+`Add-WtfMapRects` walks the same tree the restore uses and gives each leaf a
+rectangle in character coordinates, splitting in the stored proportions. Borders
+are recorded as direction bits per cell (up/down/left/right) and only then
+turned into box-drawing glyphs, which is what makes junctions come out as `┬`
+`┤` `┼` rather than a mess of crossing lines. Each box carries its number, its
+folder, and its command.
+
+Boxes are clamped to a minimum size, because a pane with a 10% share would
+otherwise be too small to show its command, and the point of the picture is to
+be read.
+
+One trap worth recording: PowerShell variable names ignore case, so a colour
+held in `$R` is the same variable as the rectangle `$r`, and `$CMD` the same as
+`$cmd`. The first version of the drawing printed `System.Collections.Hashtable`
+across every border for exactly that reason.
+
+## Run, or just type
+
+A pane's command carries a `run` flag. `run: true` executes it on open;
+`run: false` types it at the prompt and stops, waiting for Enter. Agent resume
+lines want the second: four agents starting themselves the moment a tab opens is
+rarely what was meant.
+
+Typing without running is done by writing the characters into the pane's OWN
+console input buffer (`WriteConsoleInput` on `CONIN$`), so the shell reads them
+as if they had been typed. No newline is sent, so nothing executes. Verified in
+a real pane: the text sits at the prompt and produces no output.
+
+Version 1 layouts have no `run` field, and everything in them was written
+expecting to run, so a missing value reads as true.
+
 ## Update, not overwrite
 
 A snapshot re-reads the whole tab, so changes are noticed by construction. The
@@ -180,6 +218,9 @@ a folder change, with the old folder and command shown, so the call stays yours.
 - **git on 5.1.** `ProcessStartInfo.ArgumentList` is .NET Core only; on .NET
   Framework it is `$null`, so every git call threw. There is now a fallback that
   builds a correctly quoted command line.
+- **Colour variables overwritten by loop variables.** PowerShell ignores case in
+  variable names, so `$R` (reset) and `$r` (rectangle) were one variable. The
+  drawing came out full of `System.Collections.Hashtable`.
 - **A snapshot that captured itself.** The hotkey's own console window is a
   Windows Terminal window on Windows 11, so the capture targeted it: one pane,
   no directory. The saved layout had a leaf tree and a single pane, and the

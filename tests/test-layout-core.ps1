@@ -5,6 +5,8 @@
 # Unit tests for wtf-layout.ps1 that touch NO terminals.
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\..\wtf-layout.ps1"
+. "$PSScriptRoot\..\wtf-map.ps1"
+. "$PSScriptRoot\..\wtf-tab.ps1"
 
 $fail = 0
 function Check { param([string]$What, [bool]$Ok, [string]$Got = '')
@@ -137,6 +139,77 @@ Check "tree survives"            ($back.tree.dir -eq 'V' -and $back.tree.a.dir -
 Check "plan from reloaded layout"(@(Build-WtfRestorePlan -Layout $back).Count -eq 5) "$(@(Build-WtfRestorePlan -Layout $back).Count)"
 Check "lookup is case-insensitive" ((Find-WtfLayoutName -Name 'ZZ-SELFTEST') -eq 'zz-selftest') (Find-WtfLayoutName -Name 'ZZ-SELFTEST')
 Remove-Item -LiteralPath $p -Force
+
+
+Write-Host ""
+Write-Host "=== 8. run flag: does the command execute, or just get typed? ===" -ForegroundColor Cyan
+Check "a pane with no run field defaults to running" ((Get-WtfPaneRun @{ id=1; command='x' }) -eq $true) ''
+Check "run=false is respected"                      ((Get-WtfPaneRun @{ id=1; command='x'; run=$false }) -eq $false) ''
+Check "a missing pane defaults to running"          ((Get-WtfPaneRun $null) -eq $true) ''
+
+$argRun = Get-WtfPaneLaunchArgs -Shell 'powershell' -Dir 'C:\tmp' -Command 'npm run dev' -Run $true
+$decRun = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($argRun[3]))
+Check "run=true puts the command in as-is"          ($decRun -match '(?m)^npm run dev$') $decRun
+
+$argType = Get-WtfPaneLaunchArgs -Shell 'powershell' -Dir 'C:\tmp' -Command 'claude --resume x' -Run $false
+$decType = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($argType[3]))
+Check "run=false never runs the command"            ($decType -notmatch '(?m)^claude --resume x$') $decType
+Check "run=false types it instead"                  ($decType -match 'Write-WtfPrefill -Command') $decType
+Check "run=false still sets the folder"             ($decType -match "Set-Location -LiteralPath 'C:\\tmp'") $decType
+
+$argQuote = Get-WtfPaneLaunchArgs -Shell 'powershell' -Dir 'C:\tmp' -Command "echo 'hi there'" -Run $false
+$decQuote = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($argQuote[3]))
+Check "quotes inside a typed command survive"       ($decQuote -match "echo ''hi there''") $decQuote
+
+Write-Host ""
+Write-Host "=== 9. description and version ===" -ForegroundColor Cyan
+$objD = New-WtfLayoutObject -Name 'zz-desc' -Panes @(@{id=1;dir='C:\a';command='';run=$true}) `
+                            -Tree @{kind='leaf';index=1} -Description 'what this is for'
+Check "layout files are version 2"      ($objD.version -eq 2) "$($objD.version)"
+Check "description is stored"           ($objD.description -eq 'what this is for') "$($objD.description)"
+[void](Write-WtfLayout -Name 'zz-desc' -Layout $objD)
+$backD = Read-WtfLayout -Name 'zz-desc'
+Check "description survives a round trip" ($backD.description -eq 'what this is for') "$($backD.description)"
+Check "run survives a round trip"         ((Get-WtfPaneRun $backD.panes[0]) -eq $true) ''
+Remove-Item -LiteralPath (Get-WtfLayoutPath -Name 'zz-desc') -Force
+
+Write-Host ""
+Write-Host "=== 10. the drawing ===" -ForegroundColor Cyan
+$drawLayout = @{
+    name = 'draw'; description = ''
+    panes = @(
+        @{id=1;dir='C:\a\alpha';  command='npm run dev';    run=$true},
+        @{id=2;dir='C:\a\beta';   command='claude --resume';run=$false},
+        @{id=3;dir='C:\a\gamma';  command='';               run=$true}
+    )
+    tree = @{kind='split';dir='V';size=0.5
+             a=@{kind='leaf';index=1}
+             b=@{kind='split';dir='H';size=0.5;a=@{kind='leaf';index=2};b=@{kind='leaf';index=3}}}
+}
+$map = @(Get-WtfLayoutMap -Layout $drawLayout -Width 60)
+$plain = (($map -join "`n") -replace "$([char]27)\[[0-9;]*m", '')
+Check "the drawing has lines"            ($map.Count -ge 6) "$($map.Count)"
+Check "every pane is labelled"           (($plain -match 'pane 1') -and ($plain -match 'pane 2') -and ($plain -match 'pane 3')) ''
+Check "folders are shown"                (($plain -match 'alpha') -and ($plain -match 'beta') -and ($plain -match 'gamma')) ''
+Check "a running command is marked >"    ($plain -match '> npm run dev') ''
+Check "a typed command is marked ~"      ($plain -match '~ claude --resume') ''
+Check "an empty pane says so"            ($plain -match '\(no command\)') ''
+Check "boxes are drawn"                  ($plain -match [regex]::Escape([string][char]0x250C)) ''
+Check "no colour variable leaked"        ($plain -notmatch 'System\.Collections') ''
+
+$hot = (( @(Get-WtfLayoutMap -Layout $drawLayout -Width 60 -Highlight 2) -join "`n") -replace "$([char]27)\[[0-9;]*m", '')
+Check "highlight marks the right pane"   ($hot -match '> pane 2 <') ''
+
+Write-Host ""
+Write-Host "=== 11. the layout picker frame ===" -ForegroundColor Cyan
+$lays = @{ 'one' = $drawLayout; 'two' = $drawLayout }
+$frame = @(Get-WtfLayoutPickFrame -Names @('one','two') -Layouts $lays -Selected 1 -LeftWidth 20 -MapWidth 54 -DrawMap)
+$fplain = (($frame -join "`n") -replace "$([char]27)\[[0-9;]*m", '')
+Check "both names appear"                (($fplain -match 'one') -and ($fplain -match 'two')) ''
+Check "the selected one is marked"       ($fplain -match '>\s+two') ''
+Check "the drawing sits beside the list" ($fplain -match 'pane 1') ''
+Check "the pane count is shown"          ($fplain -match '3 panes') ''
+Check "no description says so"           ($fplain -match '\(no description\)') ''
 
 Write-Host ""
 if ($fail -eq 0) { Write-Host "ALL TESTS PASSED" -ForegroundColor Green }

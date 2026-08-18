@@ -86,22 +86,64 @@ New layout 'pigeon' - 4 panes
            (no command)
 ```
 
-A command can be anything: `npm run dev`, `uvicorn app:app --reload`, or an
-agent resume line with its session id. Leave it blank and the pane just opens in
-the right folder.
+Before it asks anything it **draws the tab**, and it redraws it with the current
+pane marked as it walks through them, so there is never any doubt which pane you
+are setting:
+
+```
+  ┌─────────────────────────────┬──────────────────────────────┐
+  │ > pane 1 <                  │ pane 3                       │
+  │ pigeon-resume               │ citedspy-feat-activepieces   │
+  │ > npm run dev               │ ~ claude --resume 2c22edf3…  │
+  │                             ├──────────────────────────────┤
+  │                             │ pane 4                       │
+  ├─────────────────────────────┤ citedspy                     │
+  │ pane 2                      │ (no command)                 │
+  │ citedspy                    │                              │
+  └─────────────────────────────┴──────────────────────────────┘
+  > runs on open    ~ typed at the prompt, waiting for Enter
+```
+
+**Leaving a pane blank is a normal answer.** Press Enter and that pane just opens
+as a shell in the right folder. Plenty of panes want nothing more than that.
+
+**A command does not have to run.** After you type one you are asked whether it
+should run when the tab opens:
+
+- **yes** — it executes, which is what you want for `npm run dev` or a server.
+- **no** — it is **typed at the prompt and left there**, waiting for you to press
+  Enter. This is what you want for an agent resume line. Four agents launching
+  themselves the moment a tab opens is rarely the intention.
+
+Finally it asks for a **description** — one sentence about what the layout is
+for. Names get cryptic after a few weeks; the description is what you actually
+read when you come back to it.
 
 You can also type `wtf snap [name]` inside the tab. Add `--without-me` if you
 opened a scratch pane purely to run the command and do not want it saved.
 
 ### Opening
 
-Press **ALT+SHIFT+O**, pick from the list, and the tab is rebuilt in your current
-window: same tree, same sizes, same folders, each pane running its command.
-About 2.5 seconds for four panes.
+Press **ALT+SHIFT+O**. The list shows every layout's **name on the left and its
+shape drawn beside it**, with the pane count and description underneath, so you
+choose by looking rather than by remembering:
 
-Or `wtf tab open [name]` — leave the name out to get the same list. You will not
-remember what you called a layout three weeks later; that is what the list is
-for.
+```
+  > pigeon            ┌──────────────┬──────────────┐
+    citedspy work     │ pane 1       │ pane 3       │
+    api sweep         │ feed         │ citedspy     │
+                      │ > npm run dev│ ~ claude …   │
+                      └──────────────┴──────────────┘
+
+  4 panes  ·  activepieces app plus the jumpseller billing check
+```
+
+Enter rebuilds it in your current window: same tree, same sizes, same folders,
+each pane's command either running or waiting at the prompt. About 2.5 seconds
+for four panes.
+
+`wtf tab open [name]` does the same, and `wtf tab ls` prints every layout drawn
+out in full.
 
 ### Changing one
 
@@ -118,6 +160,7 @@ Nothing is ever saved quietly:
 | **new pane** | **always asked** for a command |
 | folder had to be inferred | **always asked** to confirm |
 | pane closed | reported, with its old command, before it goes |
+| run or type | carried over as you set it |
 | nothing to flag | still asks *"Any pane commands to change? [y/N]"* |
 
 One honest limit: if you close one pane and open another between snapshots, the
@@ -223,6 +266,8 @@ wtf hotkey install    # rewrites it and verifies
 | `wtf.ps1` | worktree engine, shared UI, dispatcher; loads the rest |
 | `wtf-layout.ps1` | capture, directory resolution, geometry→tree, diff, restore |
 | `wtf-tab.ps1` | `snap` and the `tab` commands, pane editor, picker |
+| `wtf-map.ps1` | draws a layout as boxes |
+| `wtf-prefill.ps1` | types a command at a pane's prompt without running it |
 | `wtf-hotkey.ps1` | install/remove the global hotkeys |
 | `wtf-snap-hotkey.ps1`, `wtf-open-hotkey.ps1` | what the hotkeys run |
 | `config.json` | your root folders and repo groups (ignored by git) |

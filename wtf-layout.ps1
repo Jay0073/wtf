@@ -805,16 +805,32 @@ function New-WtfLayoutObject {
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)]$Panes,
         [Parameter(Mandatory)]$Tree,
-        [string]$Shell = 'powershell'
+        [string]$Shell = 'powershell',
+        [string]$Description = ''
     )
     return @{
-        version    = 1
-        name       = $Name
-        capturedAt = (Get-Date -Format o)
-        shell      = $Shell
-        panes      = @($Panes)
-        tree       = $Tree
+        version     = 2
+        name        = $Name
+        description = $Description
+        capturedAt  = (Get-Date -Format o)
+        shell       = $Shell
+        panes       = @($Panes)
+        tree        = $Tree
     }
+}
+
+function Get-WtfPaneRun {
+    <#
+    .SYNOPSIS
+        Should this pane's command be executed on open?
+    .DESCRIPTION
+        Version 1 layouts have no such field, and everything in them was written
+        expecting to run, so a missing value means yes.
+    #>
+    param($Pane)
+    if (-not $Pane) { return $true }
+    if ($null -eq $Pane.run) { return $true }
+    return [bool]$Pane.run
 }
 
 # ============================================================================
@@ -849,7 +865,7 @@ function Compare-WtfLayout {
         $rows = @()
         foreach ($p in $newPanes) {
             $rows += @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource; command = ''
-                        status = 'new'; oldDir = ''; oldCommand = ''; mustAsk = $true }
+                        run = $true; status = 'new'; oldDir = ''; oldCommand = ''; mustAsk = $true }
         }
         return @{ Rows = @($rows); Removed = @(); NeedsAttention = $true; IsFirst = $true }
     }
@@ -875,7 +891,8 @@ function Compare-WtfLayout {
             $status = 'same'
             if ([int]$match.id -ne [int]$p.id) { $status = 'moved' }
             $rows += @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
-                        command = [string]$match.command; status = $status
+                        command = [string]$match.command; run = (Get-WtfPaneRun $match)
+                        status = $status
                         oldDir = [string]$match.dir; oldCommand = [string]$match.command }
         } else {
             $rows += $null   # placeholder, filled in pass 2
@@ -902,11 +919,12 @@ function Compare-WtfLayout {
         if ($cand) {
             $usedOld[[string]$cand.id] = $true
             $rows[$i] = @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
-                           command = [string]$cand.command; status = 'dirchanged'
+                           command = [string]$cand.command; run = (Get-WtfPaneRun $cand)
+                           status = 'dirchanged'
                            oldDir = [string]$cand.dir; oldCommand = [string]$cand.command }
         } else {
             $rows[$i] = @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
-                           command = ''; status = 'new'; oldDir = ''; oldCommand = '' }
+                           command = ''; run = $true; status = 'new'; oldDir = ''; oldCommand = '' }
         }
     }
 
@@ -999,11 +1017,16 @@ function Add-WtfRestoreSteps {
 
     $bDir = ''
     $bCmd = ''
-    if ($bPane) { $bDir = [string]$bPane.dir; $bCmd = [string]$bPane.command }
+    $bRun = $true
+    if ($bPane) {
+        $bDir = [string]$bPane.dir
+        $bCmd = [string]$bPane.command
+        $bRun = Get-WtfPaneRun $bPane
+    }
 
     [void]$State.Steps.Add(@{
         kind = 'split'; split = $Node.dir; size = $newFrac
-        paneId = $bLeaf; dir = $bDir; command = $bCmd
+        paneId = $bLeaf; dir = $bDir; command = $bCmd; run = $bRun
     })
     $State.Focused = $newId
 
@@ -1031,10 +1054,15 @@ function Build-WtfRestorePlan {
     $rootPane = $byId[[string]$rootLeaf]
 
     $steps = New-Object System.Collections.ArrayList
-    $rDir  = ''
-    $rCmd  = ''
-    if ($rootPane) { $rDir = [string]$rootPane.dir; $rCmd = [string]$rootPane.command }
-    [void]$steps.Add(@{ kind = 'new-tab'; paneId = $rootLeaf; dir = $rDir; command = $rCmd })
+    $rDir = ''
+    $rCmd = ''
+    $rRun = $true
+    if ($rootPane) {
+        $rDir = [string]$rootPane.dir
+        $rCmd = [string]$rootPane.command
+        $rRun = Get-WtfPaneRun $rootPane
+    }
+    [void]$steps.Add(@{ kind = 'new-tab'; paneId = $rootLeaf; dir = $rDir; command = $rCmd; run = $rRun })
 
     $state = @{ Steps = $steps; NextWt = 1; Focused = 0; ById = $byId }
     Add-WtfRestoreSteps -State $state -Node $Layout.tree -WtPane 0
@@ -1053,7 +1081,7 @@ function Get-WtfPaneLaunchArgs {
         The whole script is base64 encoded, so a command may contain anything at
         all — quotes, and above all ';', which is wt's own separator.
     #>
-    param([string]$Shell, [string]$Dir, [string]$Command)
+    param([string]$Shell, [string]$Dir, [string]$Command, [bool]$Run = $true)
 
     $sh = $Shell
     if (-not $sh) { $sh = 'powershell' }
@@ -1063,7 +1091,21 @@ function Get-WtfPaneLaunchArgs {
         $safe = $Dir -replace "'", "''"
         $lines += "Set-Location -LiteralPath '$safe'"
     }
-    if ($Command) { $lines += $Command }
+    if ($Command) {
+        if ($Run) {
+            $lines += $Command
+        } else {
+            # Type it at the prompt and stop there. The pane loads the small
+            # helper that writes the characters into its own console input, so
+            # the shell sees them as typed. No newline is sent, so nothing runs
+            # until you press Enter yourself.
+            $helper = Join-Path $script:WtfRoot 'wtf-prefill.ps1'
+            $hSafe  = $helper  -replace "'", "''"
+            $cSafe  = $Command -replace "'", "''"
+            $lines += "if (Test-Path -LiteralPath '$hSafe') { . '$hSafe'; Write-WtfPrefill -Command '$cSafe' }"
+            $lines += "else { Write-Host '  ready to run: $cSafe' }"
+        }
+    }
     if ($lines.Count -eq 0) { return @($sh, '-NoExit') }
 
     $script = ($lines -join "`n")
@@ -1183,7 +1225,9 @@ function Invoke-WtfLayoutRestore {
 
         if ($step.kind -eq 'new-tab') {
             $dir  = [string]$step.dir
-            $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command)
+            $doRun = $true
+            if ($null -ne $step.run) { $doRun = [bool]$step.run }
+            $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command) -Run $doRun
             $argv = @('-w', $WindowTarget, 'new-tab', '--title', $Name, $SUP, '--tabColor', $color)
             if ($dir -and (Test-Path -LiteralPath $dir)) { $argv += @('-d', $dir) }
             elseif ($dir) { Write-WtfLayoutWarn "pane 1: '$dir' does not exist — opening in the default folder" }
@@ -1246,7 +1290,9 @@ function Invoke-WtfLayoutRestore {
 
         # split
         $dir  = [string]$step.dir
-        $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command)
+        $doRun = $true
+        if ($null -ne $step.run) { $doRun = [bool]$step.run }
+        $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command) -Run $doRun
         $flag = '-H'
         if ($step.split -eq 'V') { $flag = '-V' }
         $argv = @('-w', $WindowTarget, 'split-pane', $flag, '-s', ([string]$step.size), '--title', $Name, $SUP)
