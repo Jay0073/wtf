@@ -29,6 +29,8 @@ the agent window, agent slots, `wtf open` (feature), `wtf edit` (slots),
 | `wtf.ps1` | worktree engine, shared UI, dispatcher; loads the others |
 | `wtf-layout.ps1` | capture, directory resolution, geometry to tree, diff, restore |
 | `wtf-tab.ps1` | `snap`, `tab ls/open/edit/rm`, pane editor, picker |
+| `wtf-map.ps1` | draws a layout as boxes |
+| `wtf-prefill.ps1` | dot-sourced BY a restored pane, to type a command unrun |
 | `wtf-hotkey.ps1` | install/remove the global hotkeys |
 | `wtf-snap-hotkey.ps1` | what ALT+SHIFT+S runs |
 | `wtf-open-hotkey.ps1` | what ALT+SHIFT+O runs |
@@ -63,6 +65,40 @@ The snap runner must not use `GetForegroundWindow` alone: pressing the hotkey
 opens its own console, which takes the foreground before any code runs. It falls
 back to the topmost terminal window, which `EnumWindows` returns first because it
 walks in Z-order.
+
+**The hotkey's own window is a terminal window.** Windows 11 hosts console
+applications inside Windows Terminal by default, so the window a hotkey opens
+for itself shows up in the terminal window list like any other. `GetForegroundWindow`
+returns it, an "is this a terminal?" test says yes, and the snapshot captures
+ITSELF - one pane, no directory, a leaf tree - instead of the tab that was in
+front. That is what happened on the first real use.
+
+Two guards, because either alone is thin:
+
+1. The shortcuts launch through `conhost.exe`, which forces a classic console
+   window, so our window is not in the terminal list at all. This also keeps
+   `wt -w 0` ("the most recently used terminal window") pointing at the user's
+   window rather than ours.
+2. `Find-WtfSelfWindow` identifies our own window by printing a marker and
+   looking for it in every terminal window's panes, and the foreground path
+   rules that window out before choosing a target.
+
+**Writing the .lnk does not register anything.** Windows registers the key with
+`RegisterHotKey` only once Explorer has read the file, and nothing tells Explorer
+to read it. When it does not, the key is completely dead and no error appears
+anywhere - not in the shortcut, not in an event log.
+
+This is observable: `RegisterHotKey` fails with 1409 when a combination is
+already held. So trying to register it yourself is a reliable test. A working
+hotkey probes as *taken* (Explorer holds it); a dead one probes as *free*. That
+is precisely how the ALT+SHIFT+S failure was identified — ALT+SHIFT+O probed as
+taken while ALT+SHIFT+S probed as free, which ruled out any theory about another
+app stealing the key.
+
+Installing therefore: writes the shortcut, calls `SHChangeNotify(SHCNE_CREATE)`,
+polls until the combination shows as registered, retries once by deleting and
+rewriting, and only then reports success. `wtf hotkey status` runs the same
+check, so a key that has gone dead is visible rather than mysterious.
 
 ## How capture works
 
@@ -108,6 +144,42 @@ focused pane's title, so unless all of them are pinned the tab name reverts as
 soon as focus moves — and the tab name is what tells a later snapshot which
 layout this tab is.
 
+## Drawing the layout
+
+A pane number tells you nothing about where the pane is, and nesting makes it
+worse. So every place that lists panes also draws them.
+
+`Add-WtfMapRects` walks the same tree the restore uses and gives each leaf a
+rectangle in character coordinates, splitting in the stored proportions. Borders
+are recorded as direction bits per cell (up/down/left/right) and only then
+turned into box-drawing glyphs, which is what makes junctions come out as `┬`
+`┤` `┼` rather than a mess of crossing lines. Each box carries its number, its
+folder, and its command.
+
+Boxes are clamped to a minimum size, because a pane with a 10% share would
+otherwise be too small to show its command, and the point of the picture is to
+be read.
+
+One trap worth recording: PowerShell variable names ignore case, so a colour
+held in `$R` is the same variable as the rectangle `$r`, and `$CMD` the same as
+`$cmd`. The first version of the drawing printed `System.Collections.Hashtable`
+across every border for exactly that reason.
+
+## Run, or just type
+
+A pane's command carries a `run` flag. `run: true` executes it on open;
+`run: false` types it at the prompt and stops, waiting for Enter. Agent resume
+lines want the second: four agents starting themselves the moment a tab opens is
+rarely what was meant.
+
+Typing without running is done by writing the characters into the pane's OWN
+console input buffer (`WriteConsoleInput` on `CONIN$`), so the shell reads them
+as if they had been typed. No newline is sent, so nothing executes. Verified in
+a real pane: the text sits at the prompt and produces no output.
+
+Version 1 layouts have no `run` field, and everything in them was written
+expecting to run, so a missing value reads as true.
+
 ## Update, not overwrite
 
 A snapshot re-reads the whole tab, so changes are noticed by construction. The
@@ -146,6 +218,17 @@ a folder change, with the old folder and command shown, so the call stays yours.
 - **git on 5.1.** `ProcessStartInfo.ArgumentList` is .NET Core only; on .NET
   Framework it is `$null`, so every git call threw. There is now a fallback that
   builds a correctly quoted command line.
+- **Colour variables overwritten by loop variables.** PowerShell ignores case in
+  variable names, so `$R` (reset) and `$r` (rectangle) were one variable. The
+  drawing came out full of `System.Collections.Hashtable`.
+- **A snapshot that captured itself.** The hotkey's own console window is a
+  Windows Terminal window on Windows 11, so the capture targeted it: one pane,
+  no directory. The saved layout had a leaf tree and a single pane, and the
+  "folder unknown" prompt then asked the user to type a directory for it.
+- **A hotkey that installed but never fired.** The shortcut file was written
+  correctly, with the right key on it, and did nothing — because Explorer had
+  never read the file, so Windows had registered no key at all. Nothing reported
+  a problem. Install now notifies the shell and verifies the registration.
 
 ## Testing
 

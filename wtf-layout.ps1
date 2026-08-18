@@ -312,6 +312,44 @@ function Get-WtfWindowPanes {
     return @($panes)
 }
 
+function Find-WtfSelfWindow {
+    <#
+    .SYNOPSIS
+        The terminal window this code is running inside, or IntPtr.Zero when it
+        is not running inside one.
+    .DESCRIPTION
+        Print a one-off marker, then look for it in every terminal window's
+        panes. Whichever pane shows it is our pane, so its window is ours. This
+        is exact even though Windows Terminal hosts several windows in a single
+        process, which rules out identifying it by process id.
+
+        This matters more than it sounds. Windows 11 hosts console applications
+        inside Windows Terminal by default, so a window we open for ourselves is
+        itself a terminal window - and without this it looks like a perfectly
+        good capture target.
+    .OUTPUTS
+        @{ Hwnd = IntPtr; PaneIndex = int }  (Hwnd is Zero when not found)
+    #>
+    $token = 'WTFSELF-' + ([Guid]::NewGuid().ToString('N').Substring(0, 10))
+    Write-Host $token -NoNewline
+    Start-Sleep -Milliseconds 250
+
+    $result = @{ Hwnd = [IntPtr]::Zero; PaneIndex = -1 }
+    foreach ($h in @(Get-WtfTerminalWindows)) {
+        $panes = @(Get-WtfWindowPanes -Hwnd $h -WithText)
+        for ($i = 0; $i -lt $panes.Count; $i++) {
+            if ($panes[$i].Text -and $panes[$i].Text.Contains($token)) {
+                $result = @{ Hwnd = $h; PaneIndex = $i }
+                break
+            }
+        }
+        if ($result.Hwnd -ne [IntPtr]::Zero) { break }
+    }
+    # wipe the marker off the line so it does not stay on screen
+    Write-Host ("$([char]27)[2K`r") -NoNewline
+    return $result
+}
+
 function Resolve-WtfTargetWindow {
     <#
     .SYNOPSIS
@@ -334,42 +372,39 @@ function Resolve-WtfTargetWindow {
     if (-not (Initialize-WtfInterop)) { return $null }
 
     if ($Foreground) {
-        # If a terminal really is in front, use it.
-        $h = [WtfWin]::GetForegroundWindow()
-        if ([WtfWin]::IsTerminalWindow($h)) { return @{ Hwnd = $h; SelfPaneIndex = -1 } }
+        # Work out which window is OURS and rule it out. Windows 11 hosts console
+        # applications inside Windows Terminal, so the window the hotkey opens
+        # for itself is a terminal window too - and capturing it gives you one
+        # empty pane instead of the tab you meant.
+        $self = Find-WtfSelfWindow
 
-        # Otherwise fall back to the TOPMOST terminal window. This is the normal
-        # case for the global hotkey: pressing it opens its own console window,
-        # which takes the foreground before this code runs. EnumWindows returns
-        # windows in Z-order with the topmost first, and that console is not a
-        # terminal window, so the first terminal we see is the one that was in
-        # front when you pressed the key.
-        $wins = @(Get-WtfTerminalWindows)
-        if ($wins.Count -eq 0) {
-            Write-WtfLayoutFail "No Windows Terminal window is open - nothing captured."
+        $wins  = @(Get-WtfTerminalWindows)
+        $cands = @($wins | Where-Object { $_ -ne $self.Hwnd })
+        if ($cands.Count -eq 0) {
+            if ($wins.Count -gt 0) {
+                Write-WtfLayoutFail "The only terminal window open is this one - nothing to capture."
+            } else {
+                Write-WtfLayoutFail "No Windows Terminal window is open - nothing captured."
+            }
             return $null
         }
-        return @{ Hwnd = $wins[0]; SelfPaneIndex = -1 }
-    }
 
-    $token = 'WTFSNAP-' + ([Guid]::NewGuid().ToString('N').Substring(0, 10))
-    # Print, then wipe the line, so the marker does not stay on your screen. It
-    # lingers in the scrollback buffer for a moment, which is all we need.
-    Write-Host $token -NoNewline
-    Start-Sleep -Milliseconds 250
-
-    $hit = $null
-    foreach ($h in (Get-WtfTerminalWindows)) {
-        $panes = Get-WtfWindowPanes -Hwnd $h -WithText
-        for ($i = 0; $i -lt $panes.Count; $i++) {
-            if ($panes[$i].Text -and $panes[$i].Text.Contains($token)) {
-                $hit = @{ Hwnd = $h; SelfPaneIndex = $i }
-                break
-            }
+        # If the window in front is one of the candidates, that is the one meant.
+        $fg = [WtfWin]::GetForegroundWindow()
+        foreach ($c in $cands) {
+            if ($c -eq $fg) { return @{ Hwnd = $c; SelfPaneIndex = -1 } }
         }
-        if ($hit) { break }
+
+        # Otherwise take the topmost remaining one. Get-WtfTerminalWindows walks
+        # in Z-order, so that is the tab that was in front when the key was hit.
+        return @{ Hwnd = $cands[0]; SelfPaneIndex = -1 }
     }
-    Write-Host ("$([char]27)[2K`r") -NoNewline
+
+    $self = Find-WtfSelfWindow
+    $hit = $null
+    if ($self.Hwnd -ne [IntPtr]::Zero) {
+        $hit = @{ Hwnd = $self.Hwnd; SelfPaneIndex = $self.PaneIndex }
+    }
 
     if (-not $hit) {
         Write-WtfLayoutWarn "Could not identify this pane's window; using the window in front instead."
@@ -770,16 +805,32 @@ function New-WtfLayoutObject {
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)]$Panes,
         [Parameter(Mandatory)]$Tree,
-        [string]$Shell = 'powershell'
+        [string]$Shell = 'powershell',
+        [string]$Description = ''
     )
     return @{
-        version    = 1
-        name       = $Name
-        capturedAt = (Get-Date -Format o)
-        shell      = $Shell
-        panes      = @($Panes)
-        tree       = $Tree
+        version     = 2
+        name        = $Name
+        description = $Description
+        capturedAt  = (Get-Date -Format o)
+        shell       = $Shell
+        panes       = @($Panes)
+        tree        = $Tree
     }
+}
+
+function Get-WtfPaneRun {
+    <#
+    .SYNOPSIS
+        Should this pane's command be executed on open?
+    .DESCRIPTION
+        Version 1 layouts have no such field, and everything in them was written
+        expecting to run, so a missing value means yes.
+    #>
+    param($Pane)
+    if (-not $Pane) { return $true }
+    if ($null -eq $Pane.run) { return $true }
+    return [bool]$Pane.run
 }
 
 # ============================================================================
@@ -814,7 +865,7 @@ function Compare-WtfLayout {
         $rows = @()
         foreach ($p in $newPanes) {
             $rows += @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource; command = ''
-                        status = 'new'; oldDir = ''; oldCommand = ''; mustAsk = $true }
+                        run = $true; status = 'new'; oldDir = ''; oldCommand = ''; mustAsk = $true }
         }
         return @{ Rows = @($rows); Removed = @(); NeedsAttention = $true; IsFirst = $true }
     }
@@ -840,7 +891,8 @@ function Compare-WtfLayout {
             $status = 'same'
             if ([int]$match.id -ne [int]$p.id) { $status = 'moved' }
             $rows += @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
-                        command = [string]$match.command; status = $status
+                        command = [string]$match.command; run = (Get-WtfPaneRun $match)
+                        status = $status
                         oldDir = [string]$match.dir; oldCommand = [string]$match.command }
         } else {
             $rows += $null   # placeholder, filled in pass 2
@@ -867,11 +919,12 @@ function Compare-WtfLayout {
         if ($cand) {
             $usedOld[[string]$cand.id] = $true
             $rows[$i] = @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
-                           command = [string]$cand.command; status = 'dirchanged'
+                           command = [string]$cand.command; run = (Get-WtfPaneRun $cand)
+                           status = 'dirchanged'
                            oldDir = [string]$cand.dir; oldCommand = [string]$cand.command }
         } else {
             $rows[$i] = @{ id = $p.id; dir = $p.dir; dirSource = $p.dirSource
-                           command = ''; status = 'new'; oldDir = ''; oldCommand = '' }
+                           command = ''; run = $true; status = 'new'; oldDir = ''; oldCommand = '' }
         }
     }
 
@@ -964,11 +1017,16 @@ function Add-WtfRestoreSteps {
 
     $bDir = ''
     $bCmd = ''
-    if ($bPane) { $bDir = [string]$bPane.dir; $bCmd = [string]$bPane.command }
+    $bRun = $true
+    if ($bPane) {
+        $bDir = [string]$bPane.dir
+        $bCmd = [string]$bPane.command
+        $bRun = Get-WtfPaneRun $bPane
+    }
 
     [void]$State.Steps.Add(@{
         kind = 'split'; split = $Node.dir; size = $newFrac
-        paneId = $bLeaf; dir = $bDir; command = $bCmd
+        paneId = $bLeaf; dir = $bDir; command = $bCmd; run = $bRun
     })
     $State.Focused = $newId
 
@@ -996,10 +1054,15 @@ function Build-WtfRestorePlan {
     $rootPane = $byId[[string]$rootLeaf]
 
     $steps = New-Object System.Collections.ArrayList
-    $rDir  = ''
-    $rCmd  = ''
-    if ($rootPane) { $rDir = [string]$rootPane.dir; $rCmd = [string]$rootPane.command }
-    [void]$steps.Add(@{ kind = 'new-tab'; paneId = $rootLeaf; dir = $rDir; command = $rCmd })
+    $rDir = ''
+    $rCmd = ''
+    $rRun = $true
+    if ($rootPane) {
+        $rDir = [string]$rootPane.dir
+        $rCmd = [string]$rootPane.command
+        $rRun = Get-WtfPaneRun $rootPane
+    }
+    [void]$steps.Add(@{ kind = 'new-tab'; paneId = $rootLeaf; dir = $rDir; command = $rCmd; run = $rRun })
 
     $state = @{ Steps = $steps; NextWt = 1; Focused = 0; ById = $byId }
     Add-WtfRestoreSteps -State $state -Node $Layout.tree -WtPane 0
@@ -1018,7 +1081,7 @@ function Get-WtfPaneLaunchArgs {
         The whole script is base64 encoded, so a command may contain anything at
         all — quotes, and above all ';', which is wt's own separator.
     #>
-    param([string]$Shell, [string]$Dir, [string]$Command)
+    param([string]$Shell, [string]$Dir, [string]$Command, [bool]$Run = $true)
 
     $sh = $Shell
     if (-not $sh) { $sh = 'powershell' }
@@ -1028,7 +1091,21 @@ function Get-WtfPaneLaunchArgs {
         $safe = $Dir -replace "'", "''"
         $lines += "Set-Location -LiteralPath '$safe'"
     }
-    if ($Command) { $lines += $Command }
+    if ($Command) {
+        if ($Run) {
+            $lines += $Command
+        } else {
+            # Type it at the prompt and stop there. The pane loads the small
+            # helper that writes the characters into its own console input, so
+            # the shell sees them as typed. No newline is sent, so nothing runs
+            # until you press Enter yourself.
+            $helper = Join-Path $script:WtfRoot 'wtf-prefill.ps1'
+            $hSafe  = $helper  -replace "'", "''"
+            $cSafe  = $Command -replace "'", "''"
+            $lines += "if (Test-Path -LiteralPath '$hSafe') { . '$hSafe'; Write-WtfPrefill -Command '$cSafe' }"
+            $lines += "else { Write-Host '  ready to run: $cSafe' }"
+        }
+    }
     if ($lines.Count -eq 0) { return @($sh, '-NoExit') }
 
     $script = ($lines -join "`n")
@@ -1148,7 +1225,9 @@ function Invoke-WtfLayoutRestore {
 
         if ($step.kind -eq 'new-tab') {
             $dir  = [string]$step.dir
-            $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command)
+            $doRun = $true
+            if ($null -ne $step.run) { $doRun = [bool]$step.run }
+            $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command) -Run $doRun
             $argv = @('-w', $WindowTarget, 'new-tab', '--title', $Name, $SUP, '--tabColor', $color)
             if ($dir -and (Test-Path -LiteralPath $dir)) { $argv += @('-d', $dir) }
             elseif ($dir) { Write-WtfLayoutWarn "pane 1: '$dir' does not exist — opening in the default folder" }
@@ -1211,7 +1290,9 @@ function Invoke-WtfLayoutRestore {
 
         # split
         $dir  = [string]$step.dir
-        $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command)
+        $doRun = $true
+        if ($null -ne $step.run) { $doRun = [bool]$step.run }
+        $run  = Get-WtfPaneLaunchArgs -Shell $shell -Dir $dir -Command ([string]$step.command) -Run $doRun
         $flag = '-H'
         if ($step.split -eq 'V') { $flag = '-V' }
         $argv = @('-w', $WindowTarget, 'split-pane', $flag, '-s', ([string]$step.size), '--title', $Name, $SUP)

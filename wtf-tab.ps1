@@ -6,7 +6,11 @@
 #   wtf tab edit [name]    open a layout file to change commands by hand
 #   wtf tab rm [name]      delete a layout
 #
-# Requires wtf-layout.ps1 (the capture/restore engine) to be loaded first.
+# Wherever panes are involved the layout is DRAWN, because a pane number on its
+# own does not tell you which pane it is - and that only gets worse as splits
+# nest. See wtf-map.ps1.
+#
+# Requires wtf-layout.ps1 (capture/restore) and wtf-map.ps1 (drawing).
 #
 # Runs on Windows PowerShell 5.1 and PowerShell 7+ alike: no `e escapes, no
 # ternary or null-coalescing operators. Save as UTF-8 WITH BOM.
@@ -21,11 +25,20 @@ $script:WtfEsc = [char]27
 
 function Write-WtfRaw { param([string]$S) [Console]::Out.Write($S) }
 
+function Get-WtfConsoleWidth {
+    try {
+        $w = [Console]::WindowWidth
+        if ($w -gt 30) { return $w }
+    } catch { }
+    return 100
+}
+
 function Write-WtfTitle {
     param([string]$Text)
     $E = $script:WtfEsc
     Write-WtfRaw "`n$E[38;5;141m$E[1m  $Text$E[0m`n"
-    Write-WtfRaw "$E[38;5;240m  $('-' * [Math]::Min(60, $Text.Length + 12))$E[0m`n"
+    $rule = [string][char]0x2500
+    Write-WtfRaw "$E[38;5;240m  $($rule * [Math]::Min(64, $Text.Length + 12))$E[0m`n"
 }
 
 function Read-WtfPick {
@@ -34,11 +47,9 @@ function Read-WtfPick {
         Arrow-key picker. Returns the chosen index, or -1 if cancelled.
     .DESCRIPTION
         Redraw works by moving the cursor UP over the rows already on screen and
-        rewriting each one in place. The list is drawn exactly once and then
-        overwritten; it never grows as you move up and down.
-
-        Each line is cleared with ESC[2K before writing, so a shorter line can
-        never leave the tail of a longer one behind it.
+        rewriting each one in place, then clearing to the end of the screen. A
+        row wider than the pane would otherwise wrap onto a second physical line
+        and be left behind, which is why rows are also truncated to the width.
     #>
     param(
         [Parameter(Mandatory)][string]$Title,
@@ -54,12 +65,12 @@ function Read-WtfPick {
     if ($sel -lt 0 -or $sel -ge $n) { $sel = 0 }
 
     Write-WtfTitle $Title
-    Write-WtfRaw "$E[?25l"          # hide the cursor while we redraw
+    Write-WtfRaw "$E[?25l"
 
     $drawn = $false
     try {
         while ($true) {
-            if ($drawn) { Write-WtfRaw "$E[${n}A" }   # jump back over the rows
+            if ($drawn) { Write-WtfRaw "$E[${n}A" }
 
             for ($i = 0; $i -lt $n; $i++) {
                 $hint = ''
@@ -70,6 +81,7 @@ function Read-WtfPick {
                     Write-WtfRaw "$E[2K`r    $E[38;5;250m$($Options[$i])$E[0m$hint`n"
                 }
             }
+            Write-WtfRaw "$E[0J"
             $drawn = $true
 
             $key = [Console]::ReadKey($true)
@@ -83,7 +95,6 @@ function Read-WtfPick {
                 'Enter'     { return $sel }
                 'Escape'    { return -1 }
                 default {
-                    # 1..9 jump straight to a row
                     $c = $key.KeyChar
                     if ($c -ge '1' -and $c -le '9') {
                         $idx = [int]::Parse($c) - 1
@@ -99,10 +110,6 @@ function Read-WtfPick {
 }
 
 function Read-WtfYesNo {
-    <#
-    .SYNOPSIS
-        A single y/n question. $Default is what Enter means.
-    #>
     param([Parameter(Mandatory)][string]$Question, [bool]$Default = $false)
     $E = $script:WtfEsc
     $hint = '[y/N]'
@@ -121,17 +128,18 @@ function Read-WtfYesNo {
 function Read-WtfValue {
     <#
     .SYNOPSIS
-        Read one line of text. Pressing Enter on its own keeps $Current.
-    .NOTES
-        The current value is shown rather than pre-typed into the line. The
-        console gives no way to seed the input buffer that also survives paste,
-        and pasting a fresh resume command is the common case here.
+        Read one line of text. Enter on its own keeps $Current.
+    .PARAMETER EmptyHint
+        What pressing Enter means here, shown so that leaving something blank is
+        an obvious choice rather than a thing you have to guess at.
     #>
-    param([string]$Label, [string]$Current = '')
+    param([string]$Label, [string]$Current = '', [string]$EmptyHint = '')
     $E = $script:WtfEsc
     if ($Current) {
         Write-WtfRaw "  $E[38;5;240mcurrent:$E[0m $E[38;5;250m$Current$E[0m`n"
         Write-WtfRaw "  $E[38;5;240m(Enter keeps it, '-' clears it)$E[0m`n"
+    } elseif ($EmptyHint) {
+        Write-WtfRaw "  $E[38;5;240m($EmptyHint)$E[0m`n"
     }
     Write-WtfRaw "  $E[38;5;81m$Label$E[0m "
     $v = [Console]::ReadLine()
@@ -142,7 +150,6 @@ function Read-WtfValue {
 }
 
 function Format-WtfPath {
-    # Shorten a long path for display, keeping the meaningful tail.
     param([string]$Path, [int]$Max = 52)
     if (-not $Path) { return '(not known)' }
     if ($Path.Length -le $Max) { return $Path }
@@ -150,7 +157,7 @@ function Format-WtfPath {
 }
 
 # ============================================================================
-# SHOWING THE DIFF
+# SHOWING A LAYOUT
 # ============================================================================
 
 function Show-WtfLayoutDiff {
@@ -183,7 +190,10 @@ function Show-WtfLayoutDiff {
             Write-WtfRaw "           $E[38;5;215mfolder could not be read - type it in$E[0m`n"
         }
         if ($r.command) {
-            Write-WtfRaw "           $E[38;5;42m$ $E[0m$E[38;5;250m$($r.command)$E[0m`n"
+            $mark = '>'
+            $col  = '38;5;42'
+            if ($null -ne $r.run -and -not $r.run) { $mark = '~'; $col = '38;5;215' }
+            Write-WtfRaw "           $E[${col}m$mark $E[0m$E[38;5;250m$($r.command)$E[0m`n"
         } else {
             Write-WtfRaw "           $E[38;5;240m(no command)$E[0m`n"
         }
@@ -196,25 +206,74 @@ function Show-WtfLayoutDiff {
     Write-WtfRaw "`n"
 }
 
+function Show-WtfCommandKey {
+    $E = $script:WtfEsc
+    Write-WtfRaw "  $E[38;5;42m>$E[0m$E[38;5;240m runs on open    $E[0m$E[38;5;215m~$E[0m$E[38;5;240m typed at the prompt, waiting for Enter$E[0m`n"
+}
+
 # ============================================================================
 # EDITING PANE COMMANDS
 # ============================================================================
+
+function Set-WtfPaneCommand {
+    <#
+    .SYNOPSIS
+        Ask for one pane's command, and whether it should run by itself.
+    .DESCRIPTION
+        The layout is redrawn with this pane marked, so there is never any doubt
+        about which pane is being set.
+
+        Leaving a command blank is a first-class answer: plenty of panes want to
+        be nothing more than a shell already sitting in the right folder.
+
+        A command that IS given can either run on open, or be typed at the prompt
+        and left there. The second is what you want for an agent resume line -
+        having four agents start themselves the moment a tab opens is rarely the
+        intention.
+    #>
+    param([Parameter(Mandatory)]$Row, [Parameter(Mandatory)]$Layout)
+
+    $E = $script:WtfEsc
+    Show-WtfLayoutMap -Layout $Layout -Width (Get-WtfMapWidth) -Highlight ([int]$Row.id)
+
+    $why = ''
+    if ($Row.status -eq 'dirchanged') { $why = "this pane's folder changed from $(Format-WtfPath $Row.oldDir 40)" }
+    if ($Row.dirSource -eq 'process') { $why = 'the folder was inferred, please confirm it' }
+    if (-not $Row.dir)                { $why = 'the folder could not be read' }
+    if ($why) { Write-WtfRaw "  $E[38;5;215m$why$E[0m`n" }
+
+    Write-WtfRaw "`n  $E[1mpane $($Row.id)$E[0m  $E[38;5;250m$(Format-WtfPath $Row.dir 60)$E[0m`n"
+
+    if (-not $Row.dir) {
+        $Row.dir = Read-WtfValue -Label 'folder:' -Current '' -EmptyHint 'Enter to leave it unset'
+    }
+
+    $Row.command = Read-WtfValue -Label 'command:' -Current ([string]$Row.command) `
+                                 -EmptyHint 'Enter for none - the pane just opens in that folder'
+
+    if ($Row.command) {
+        $Row.run = Read-WtfYesNo -Question 'run it automatically when the tab opens?' -Default $true
+        if (-not $Row.run) {
+            Write-WtfRaw "  $E[38;5;240mit will be typed at the prompt, waiting for you to press Enter$E[0m`n"
+        }
+    } else {
+        $Row.run = $true
+    }
+    return $Row
+}
 
 function Invoke-WtfPaneBoard {
     <#
     .SYNOPSIS
         Walk the panes so you can set each one's command.
     .DESCRIPTION
-        Two modes:
-          -OnlyAttention : step through just the panes whose command can no
-                           longer be trusted (new pane, or the folder moved).
-                           This runs on its own, because a command that was right
-                           for the old folder is probably wrong for the new one.
-          otherwise      : pick any pane from a list and edit it, as often as
-                           you like, until you choose Done.
+        -OnlyAttention steps through just the panes whose command can no longer
+        be trusted (a new pane, or one whose folder moved). Otherwise you pick
+        any pane from the drawing, as often as you like, until you choose Done.
     #>
     param(
         [Parameter(Mandatory)]$Rows,
+        [Parameter(Mandatory)]$Layout,
         [switch]$OnlyAttention
     )
     $rows = @($Rows)
@@ -223,20 +282,8 @@ function Invoke-WtfPaneBoard {
         $todo = @($rows | Where-Object { $_.mustAsk })
         if ($todo.Count -eq 0) { return $rows }
         Write-WtfTitle "$($todo.Count) pane(s) need a command"
-        foreach ($r in $todo) {
-            $why = 'new pane'
-            if ($r.status -eq 'dirchanged') { $why = "folder changed from $(Format-WtfPath $r.oldDir 40)" }
-            if ($r.dirSource -eq 'process')  { $why = 'folder was inferred, please confirm' }
-            if (-not $r.dir)                 { $why = 'folder unknown' }
-
-            Write-WtfRaw "`n  $($script:WtfEsc)[1mpane $($r.id)$($script:WtfEsc)[0m  $(Format-WtfPath $r.dir)`n"
-            Write-WtfRaw "  $($script:WtfEsc)[38;5;215m$why$($script:WtfEsc)[0m`n"
-
-            if (-not $r.dir) {
-                $r.dir = Read-WtfValue -Label 'folder:' -Current ''
-            }
-            $r.command = Read-WtfValue -Label 'command:' -Current $r.command
-        }
+        Show-WtfCommandKey
+        foreach ($r in $todo) { [void](Set-WtfPaneCommand -Row $r -Layout $Layout) }
         return $rows
     }
 
@@ -244,19 +291,45 @@ function Invoke-WtfPaneBoard {
         $labels = @()
         $hints  = @()
         foreach ($r in $rows) {
-            $labels += ("pane {0}  {1}" -f $r.id, (Format-WtfPath $r.dir 44))
-            if ($r.command) { $hints += $r.command } else { $hints += '(no command)' }
+            $labels += ("pane {0}  {1}" -f $r.id, (Format-WtfPath $r.dir 40))
+            if ($r.command) {
+                $mark = '>'
+                if ($null -ne $r.run -and -not $r.run) { $mark = '~' }
+                $hints += "$mark $($r.command)"
+            } else {
+                $hints += '(no command)'
+            }
         }
         $labels += 'Done'
         $hints  += ''
 
+        Show-WtfLayoutMap -Layout $Layout -Width (Get-WtfMapWidth)
+        Show-WtfCommandKey
         $pick = Read-WtfPick -Title 'Which pane do you want to change?' -Options $labels -Hints $hints
         if ($pick -lt 0 -or $pick -ge $rows.Count) { return $rows }
 
-        $r = $rows[$pick]
-        Write-WtfRaw "`n  $($script:WtfEsc)[1mpane $($r.id)$($script:WtfEsc)[0m  $($r.dir)`n"
-        $r.command = Read-WtfValue -Label 'command:' -Current $r.command
+        [void](Set-WtfPaneCommand -Row $rows[$pick] -Layout $Layout)
     }
+}
+
+function Get-WtfMapWidth {
+    $w = (Get-WtfConsoleWidth) - 6
+    if ($w -gt 96) { $w = 96 }
+    if ($w -lt 30) { $w = 30 }
+    return $w
+}
+
+function New-WtfPreviewLayout {
+    # A layout-shaped object built from the rows being edited, so the drawing
+    # always shows what you have typed so far rather than what was on disk.
+    param($Rows, $Tree, [string]$Name = '', [string]$Description = '')
+    $panes = @()
+    foreach ($r in @($Rows)) {
+        $run = $true
+        if ($null -ne $r.run) { $run = [bool]$r.run }
+        $panes += @{ id = $r.id; dir = [string]$r.dir; command = [string]$r.command; run = $run }
+    }
+    return @{ name = $Name; description = $Description; panes = @($panes); tree = $Tree }
 }
 
 # ============================================================================
@@ -269,17 +342,11 @@ function Invoke-WtfSnap {
         Save the current tab as a layout, or update the layout it came from.
     .DESCRIPTION
         A snapshot re-reads the whole tab from the screen every time, so every
-        change is noticed on its own: a closed pane is simply absent, a new pane
-        is simply present, and a changed folder reads as the new folder. Nothing
-        is ever saved without showing you first.
+        change is noticed on its own. Nothing is ever saved without showing you.
 
         Which tab? The ACTIVE tab of the window this runs in. With -Foreground
         (how the hotkey calls it) it is the window in front, which needs no free
         pane in the tab at all - and your panes are usually all busy.
-
-        Which layout? An explicit name wins. Otherwise, if the tab carries the
-        name of a saved layout - which it does whenever `wtf tab open` built it -
-        that layout is UPDATED. Otherwise you are asked for a name.
     #>
     param(
         [string]$Name,
@@ -311,6 +378,11 @@ function Invoke-WtfSnap {
     }
 
     if (-not $layoutName) {
+        # Show it before asking anything: the shape is the best reminder of what
+        # this tab actually is.
+        Write-WtfTitle "This tab - $(@($cap.Panes).Count) panes"
+        Show-WtfLayoutMap -Layout (New-WtfPreviewLayout -Rows $cap.Panes -Tree $cap.Tree) -Width (Get-WtfMapWidth)
+
         Write-WtfTitle "Name this layout"
         Write-WtfRaw "  $($script:WtfEsc)[38;5;240mletters, digits, spaces, - _ . and emoji; up to 60 characters$($script:WtfEsc)[0m`n"
         while ($true) {
@@ -331,33 +403,53 @@ function Invoke-WtfSnap {
 
     Show-WtfLayoutDiff -Diff $diff -Name $layoutName
 
-    # Panes whose command can no longer be trusted are always asked about.
     $rows = @($diff.Rows)
+
+    # Panes whose command can no longer be trusted are always asked about.
     if ($diff.NeedsAttention) {
-        $rows = @(Invoke-WtfPaneBoard -Rows $rows -OnlyAttention)
+        $preview = New-WtfPreviewLayout -Rows $rows -Tree $cap.Tree -Name $layoutName
+        $rows = @(Invoke-WtfPaneBoard -Rows $rows -Layout $preview -OnlyAttention)
     }
 
     # And you are always given the chance to change anything else.
     $more = 'Any pane commands to change?'
     if ($diff.NeedsAttention) { $more = 'Any OTHER pane commands to change?' }
     if (Read-WtfYesNo -Question $more -Default $false) {
-        $rows = @(Invoke-WtfPaneBoard -Rows $rows)
+        $preview = New-WtfPreviewLayout -Rows $rows -Tree $cap.Tree -Name $layoutName
+        $rows = @(Invoke-WtfPaneBoard -Rows $rows -Layout $preview)
+    }
+
+    # A short name plus a sentence beats a long name you still cannot decode
+    # after three weeks away from the feature.
+    $description = ''
+    if ($saved -and $saved.description) { $description = [string]$saved.description }
+    if (-not $description) {
+        $description = Read-WtfValue -Label 'description:' -Current '' `
+                                     -EmptyHint 'Enter to skip - what is this layout for?'
+    } elseif (Read-WtfYesNo -Question "Change the description? ($description)" -Default $false) {
+        $description = Read-WtfValue -Label 'description:' -Current $description
     }
 
     $panes = @()
     foreach ($r in $rows) {
-        $panes += @{ id = $r.id; dir = [string]$r.dir; command = [string]$r.command }
+        $run = $true
+        if ($null -ne $r.run) { $run = [bool]$r.run }
+        $panes += @{ id = $r.id; dir = [string]$r.dir; command = [string]$r.command; run = $run }
     }
 
     $shell = 'powershell'
     if ($saved -and $saved.shell) { $shell = [string]$saved.shell }
 
-    $obj  = New-WtfLayoutObject -Name $layoutName -Panes $panes -Tree $cap.Tree -Shell $shell
+    $obj  = New-WtfLayoutObject -Name $layoutName -Panes $panes -Tree $cap.Tree `
+                                -Shell $shell -Description $description
     $path = Write-WtfLayout -Name $layoutName -Layout $obj
 
     $verb = 'saved'
     if ($saved) { $verb = 'updated' }
-    Write-WtfLayoutOk "$verb '$layoutName' - $(@($panes).Count) panes"
+    Write-WtfTitle "$verb '$layoutName'"
+    Show-WtfLayoutMap -Layout $obj -Width (Get-WtfMapWidth)
+    Show-WtfCommandKey
+    Write-WtfLayoutOk "$verb - $(@($panes).Count) panes"
     Write-WtfLayoutInfo $path
     if (-not $saved) {
         Write-WtfLayoutInfo "open it later with: wtf tab open $layoutName"
@@ -365,15 +457,145 @@ function Invoke-WtfSnap {
 }
 
 # ============================================================================
-# COMMAND: wtf tab ...
+# CHOOSING A LAYOUT
 # ============================================================================
 
-function Select-WtfLayoutName {
+function Get-WtfLayoutPickFrame {
     <#
     .SYNOPSIS
-        Pick a layout from a list. Saves you remembering the names, which is the
-        whole point after a few weeks away from a feature.
+        One frame of the layout picker: names down the left, the highlighted
+        layout drawn beside them, its description underneath.
+    .DESCRIPTION
+        Kept separate from the key handling so the drawing can be checked
+        without a console attached.
+    .OUTPUTS
+        An array of strings, ready to print.
     #>
+    param(
+        [Parameter(Mandatory)][string[]]$Names,
+        [Parameter(Mandatory)]$Layouts,
+        [int]$Selected = 0,
+        [int]$LeftWidth = 22,
+        [int]$MapWidth = 60,
+        [switch]$DrawMap
+    )
+    $E = $script:WtfEsc
+    $n = $Names.Count
+    $lay = $null
+    if ($Selected -ge 0 -and $Selected -lt $n) { $lay = $Layouts[$Names[$Selected]] }
+
+    $mapLines = @()
+    if ($DrawMap -and $lay) { $mapLines = @(Get-WtfLayoutMap -Layout $lay -Width $MapWidth) }
+
+    $rowCount = [Math]::Max($n, $mapLines.Count)
+    $lines = @()
+    for ($i = 0; $i -lt $rowCount; $i++) {
+        $left = ' ' * $LeftWidth
+        if ($i -lt $n) {
+            $nm = $Names[$i]
+            if ($nm.Length -gt ($LeftWidth - 5)) { $nm = $nm.Substring(0, $LeftWidth - 6) + [char]0x2026 }
+            $pad = ' ' * [Math]::Max(0, $LeftWidth - 4 - $nm.Length)
+            if ($i -eq $Selected) {
+                $left = "$E[38;5;212m  > $E[0m$E[1m$nm$E[0m$pad"
+            } else {
+                $left = "$E[38;5;250m    $nm$E[0m$pad"
+            }
+        }
+        $right = ''
+        if ($i -lt $mapLines.Count) { $right = $mapLines[$i] }
+        $lines += ($left + $right)
+    }
+
+    $lines += ''
+    if ($lay) {
+        $cnt = @($lay.panes).Count
+        $desc = ''
+        if ($lay.description) { $desc = [string]$lay.description }
+        if ($desc) {
+            $lines += "  $E[38;5;240m$cnt panes  " + [char]0x00B7 + "  $E[0m$E[3m$E[38;5;250m$desc$E[0m"
+        } else {
+            $lines += "  $E[38;5;240m$cnt panes  " + [char]0x00B7 + "  (no description)$E[0m"
+        }
+    } else {
+        $lines += "  $E[38;5;203m(could not read this layout)$E[0m"
+    }
+    $lines += "  $E[38;5;240mup/down to move " + [char]0x00B7 + " enter to open " + [char]0x00B7 + " esc to cancel$E[0m"
+    return $lines
+}
+
+function Read-WtfLayoutPick {
+    <#
+    .SYNOPSIS
+        Pick a layout, with its shape drawn beside the list.
+    .DESCRIPTION
+        Names on the left, the highlighted layout DRAWN on the right, and its
+        description underneath. Remembering what a name meant is exactly the
+        thing that fails after a few weeks, so the picture and the description
+        do that work instead.
+    .OUTPUTS
+        The chosen name, or '' when cancelled.
+    #>
+    param([Parameter(Mandatory)][string[]]$Names, [string]$Title = 'Which layout?')
+
+    $E = $script:WtfEsc
+    $n = $Names.Count
+    if ($n -eq 0) { return '' }
+
+    # Read them once; drawing on every keypress should not re-read the disk.
+    $layouts = @{}
+    foreach ($nm in $Names) { $layouts[$nm] = Read-WtfLayout -Name $nm }
+
+    $leftW = 0
+    foreach ($nm in $Names) { if ($nm.Length -gt $leftW) { $leftW = $nm.Length } }
+    $leftW = $leftW + 6
+    if ($leftW -lt 18) { $leftW = 18 }
+    if ($leftW -gt 34) { $leftW = 34 }
+
+    $mapW = (Get-WtfConsoleWidth) - $leftW - 6
+    if ($mapW -gt 84) { $mapW = 84 }
+    $drawMap = ($mapW -ge 30)
+
+    $sel = 0
+    Write-WtfTitle $Title
+    Write-WtfRaw "$E[?25l"
+    $drawn = 0
+    try {
+        while ($true) {
+            if ($drawn -gt 0) { Write-WtfRaw "$E[${drawn}A" }
+
+            $lines = @(Get-WtfLayoutPickFrame -Names $Names -Layouts $layouts `
+                                              -Selected $sel -LeftWidth $leftW `
+                                              -MapWidth $mapW -DrawMap:$drawMap)
+            foreach ($l in $lines) { Write-WtfRaw "$E[2K`r$l`n" }
+            Write-WtfRaw "$E[0J"
+            $drawn = $lines.Count
+
+            $key = [Console]::ReadKey($true)
+            switch ($key.Key) {
+                'UpArrow'   { $sel = ($sel - 1 + $n) % $n }
+                'DownArrow' { $sel = ($sel + 1) % $n }
+                'K'         { $sel = ($sel - 1 + $n) % $n }
+                'J'         { $sel = ($sel + 1) % $n }
+                'Home'      { $sel = 0 }
+                'End'       { $sel = $n - 1 }
+                'Enter'     { return $Names[$sel] }
+                'Escape'    { return '' }
+                default {
+                    $c = $key.KeyChar
+                    if ($c -ge '1' -and $c -le '9') {
+                        $idx = [int]::Parse($c) - 1
+                        if ($idx -lt $n) { return $Names[$idx] }
+                    }
+                }
+            }
+        }
+    }
+    finally {
+        Write-WtfRaw "$E[?25h"
+    }
+}
+
+function Select-WtfLayoutName {
     param([string]$Name, [string]$Purpose = 'Which layout?')
 
     if ($Name) {
@@ -384,50 +606,40 @@ function Select-WtfLayoutName {
 
     $names = @(Get-WtfLayoutNames)
     if ($names.Count -eq 0) {
-        Write-WtfLayoutFail "No layouts saved yet. Arrange a tab the way you like, then run: wtf snap"
+        Write-WtfLayoutFail "No layouts saved yet. Arrange a tab the way you like, then press ALT+SHIFT+S."
         return ''
     }
-
-    $hints = @()
-    foreach ($n in $names) {
-        $l = Read-WtfLayout -Name $n
-        if ($l) {
-            $when = ''
-            if ($l.capturedAt) {
-                try { $when = ([datetime]$l.capturedAt).ToString('dd MMM HH:mm') } catch { $when = '' }
-            }
-            $hints += ("{0} panes   {1}" -f @($l.panes).Count, $when)
-        } else { $hints += '' }
-    }
-
-    $pick = Read-WtfPick -Title $Purpose -Options $names -Hints $hints
-    if ($pick -lt 0) { return '' }
-    return $names[$pick]
+    return (Read-WtfLayoutPick -Names $names -Title $Purpose)
 }
+
+# ============================================================================
+# COMMAND: wtf tab ...
+# ============================================================================
 
 function Invoke-WtfTabList {
     $names = @(Get-WtfLayoutNames)
     if ($names.Count -eq 0) {
         Write-WtfTitle 'Saved layouts'
-        Write-WtfLayoutInfo "none yet - arrange a tab, then run: wtf snap"
+        Write-WtfLayoutInfo "none yet - arrange a tab, then press ALT+SHIFT+S"
         return
     }
-    Write-WtfTitle "Saved layouts ($($names.Count))"
     $E = $script:WtfEsc
+    Write-WtfTitle "Saved layouts ($($names.Count))"
+    Show-WtfCommandKey
+
     foreach ($n in $names) {
         $l = Read-WtfLayout -Name $n
         if (-not $l) { continue }
         $when = ''
         if ($l.capturedAt) { try { $when = ([datetime]$l.capturedAt).ToString('dd MMM yyyy HH:mm') } catch { } }
-        Write-WtfRaw "  $E[1m$n$E[0m  $E[38;5;240m$(@($l.panes).Count) panes - $when$E[0m`n"
-        foreach ($p in @($l.panes)) {
-            $cmd = '(no command)'
-            if ($p.command) { $cmd = [string]$p.command }
-            if ($cmd.Length -gt 46) { $cmd = $cmd.Substring(0, 46) + '...' }
-            Write-WtfRaw "      $E[38;5;240m$($p.id).$E[0m $(Format-WtfPath ([string]$p.dir) 46)  $E[38;5;42m$cmd$E[0m`n"
+
+        Write-WtfRaw "`n  $E[1m$E[38;5;81m$n$E[0m  $E[38;5;240m$(@($l.panes).Count) panes · $when$E[0m`n"
+        if ($l.description) {
+            Write-WtfRaw "  $E[3m$E[38;5;250m$([string]$l.description)$E[0m`n"
         }
-        Write-WtfRaw "`n"
+        Show-WtfLayoutMap -Layout $l -Width (Get-WtfMapWidth)
     }
+    Write-WtfRaw "`n"
 }
 
 function Invoke-WtfTabOpen {
@@ -459,13 +671,14 @@ function Invoke-WtfTabEdit {
     if (-not $n) { return }
     $p = Get-WtfLayoutPath -Name $n
     Write-WtfLayoutInfo $p
+    Write-WtfLayoutInfo "each pane has 'command' and 'run'; set run to false to have it typed, not executed"
 
     $editor = $env:EDITOR
     if (-not $editor) {
         if (Get-Command code -ErrorAction SilentlyContinue) { $editor = 'code' } else { $editor = 'notepad' }
     }
     Start-Process -FilePath $editor -ArgumentList @($p)
-    Write-WtfLayoutOk "opened in $editor - edit the 'command' of any pane, then save"
+    Write-WtfLayoutOk "opened in $editor"
 }
 
 function Invoke-WtfTabRemove {
@@ -485,10 +698,6 @@ function Invoke-WtfTabRemove {
 }
 
 function Invoke-WtfTab {
-    <#
-    .SYNOPSIS
-        Dispatcher for `wtf tab <sub> [name]`.
-    #>
     param([string]$Sub, [string]$Name)
 
     if (-not $Sub) { $Sub = 'ls' }
@@ -502,7 +711,6 @@ function Invoke-WtfTab {
         'delete' { Invoke-WtfTabRemove -Name $Name }
         'save'   { Invoke-WtfSnap      -Name $Name }
         default  {
-            # `wtf tab pigeon` is a natural way to say "open pigeon"
             $found = Find-WtfLayoutName -Name $Sub
             if ($found) { Invoke-WtfTabOpen -Name $found }
             else {

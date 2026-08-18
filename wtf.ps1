@@ -3322,7 +3322,8 @@ function Show-WtfHelp {
     Write-WtfDetail "  wtf hotkey install                                  ALT+SHIFT+S snap, ALT+SHIFT+O open"
     Write-WtfDetail "  wtf hotkey status | remove [snap|open]              inspect or drop the hotkeys"
     Write-WtfDetail ""
-    Write-WtfDetail "Leave a name out and you get a list to pick from."
+    Write-WtfDetail "Leave a name out and you get a picker that DRAWS each layout."
+    Write-WtfDetail "A pane command can run on open, or just be typed at the prompt ready to go."
     Write-WtfDetail "wtf create only prints paths - you arrange your own panes, then wtf snap saves them."
 }
 
@@ -3395,7 +3396,7 @@ function wtf {
 # the worktree engine above stays independent of it.
 
 $script:WtfHere = Split-Path -Parent $PSCommandPath
-foreach ($mod in @('wtf-layout.ps1', 'wtf-tab.ps1', 'wtf-hotkey.ps1')) {
+foreach ($mod in @('wtf-layout.ps1', 'wtf-map.ps1', 'wtf-tab.ps1', 'wtf-hotkey.ps1')) {
     $modPath = Join-Path $script:WtfHere $mod
     if (Test-Path $modPath) { . $modPath }
     else { Write-Warning "wtf: missing module $mod" }

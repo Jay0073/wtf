@@ -20,3 +20,8 @@ logs/
 whole-context.txt
 .vscode/
 Thumbs.db
+
+# diagnostic scratch files written by the tool while testing
+*-test.txt
+*-verify.txt
+hotkey-trace.log
