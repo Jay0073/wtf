@@ -64,6 +64,23 @@ opens its own console, which takes the foreground before any code runs. It falls
 back to the topmost terminal window, which `EnumWindows` returns first because it
 walks in Z-order.
 
+**The hotkey's own window is a terminal window.** Windows 11 hosts console
+applications inside Windows Terminal by default, so the window a hotkey opens
+for itself shows up in the terminal window list like any other. `GetForegroundWindow`
+returns it, an "is this a terminal?" test says yes, and the snapshot captures
+ITSELF - one pane, no directory, a leaf tree - instead of the tab that was in
+front. That is what happened on the first real use.
+
+Two guards, because either alone is thin:
+
+1. The shortcuts launch through `conhost.exe`, which forces a classic console
+   window, so our window is not in the terminal list at all. This also keeps
+   `wt -w 0` ("the most recently used terminal window") pointing at the user's
+   window rather than ours.
+2. `Find-WtfSelfWindow` identifies our own window by printing a marker and
+   looking for it in every terminal window's panes, and the foreground path
+   rules that window out before choosing a target.
+
 **Writing the .lnk does not register anything.** Windows registers the key with
 `RegisterHotKey` only once Explorer has read the file, and nothing tells Explorer
 to read it. When it does not, the key is completely dead and no error appears
@@ -163,6 +180,10 @@ a folder change, with the old folder and command shown, so the call stays yours.
 - **git on 5.1.** `ProcessStartInfo.ArgumentList` is .NET Core only; on .NET
   Framework it is `$null`, so every git call threw. There is now a fallback that
   builds a correctly quoted command line.
+- **A snapshot that captured itself.** The hotkey's own console window is a
+  Windows Terminal window on Windows 11, so the capture targeted it: one pane,
+  no directory. The saved layout had a leaf tree and a single pane, and the
+  "folder unknown" prompt then asked the user to type a directory for it.
 - **A hotkey that installed but never fired.** The shortcut file was written
   correctly, with the right key on it, and did nothing — because Explorer had
   never read the file, so Windows had registered no key at all. Nothing reported

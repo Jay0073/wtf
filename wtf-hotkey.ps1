@@ -187,8 +187,20 @@ function Install-WtfHotkey {
     $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (-not (Test-Path $psExe)) { $psExe = 'powershell.exe' }
 
+    # Launch through conhost so this gets a CLASSIC console window. Windows 11
+    # otherwise hosts console apps inside Windows Terminal, which would make our
+    # own window a terminal window - and then a snapshot can capture itself, and
+    # `wt -w 0` can target us instead of the window you were working in.
+    $conhost = Join-Path $env:WINDIR 'System32\conhost.exe'
+    $target  = $psExe
+    $cmdArgs = '-NoProfile -ExecutionPolicy Bypass -File "' + $runner + '"'
+    if (Test-Path $conhost) {
+        $target  = $conhost
+        $cmdArgs = '"' + $psExe + '" ' + $cmdArgs
+    }
+
     $link = Get-WtfHotkeyLinkPath -Action $Action
-    if (-not (Write-WtfHotkeyLink -Link $link -Target $psExe -Runner $runner -Blurb $spec.Blurb -Hotkey $hk)) {
+    if (-not (Write-WtfHotkeyLink -Link $link -Target $target -Arguments $cmdArgs -Blurb $spec.Blurb -Hotkey $hk)) {
         return $false
     }
 
@@ -201,7 +213,7 @@ function Install-WtfHotkey {
         Remove-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue
         if ('WtfHotkeyNative' -as [type]) { [WtfHotkeyNative]::NotifyDelete($link) }
         Start-Sleep -Milliseconds 700
-        [void](Write-WtfHotkeyLink -Link $link -Target $psExe -Runner $runner -Blurb $spec.Blurb -Hotkey $hk)
+        [void](Write-WtfHotkeyLink -Link $link -Target $target -Arguments $cmdArgs -Blurb $spec.Blurb -Hotkey $hk)
         $live = Wait-WtfHotkeyLive -Combo $hk -Seconds 6
     }
 
@@ -219,12 +231,12 @@ function Install-WtfHotkey {
 function Write-WtfHotkeyLink {
     # Create the shortcut AND tell the shell it appeared. Without the second
     # part Explorer may never read the file, and the shortcut key never works.
-    param([string]$Link, [string]$Target, [string]$Runner, [string]$Blurb, [string]$Hotkey)
+    param([string]$Link, [string]$Target, [string]$Arguments, [string]$Blurb, [string]$Hotkey)
     try {
         $shell = New-Object -ComObject WScript.Shell
         $sc = $shell.CreateShortcut($Link)
         $sc.TargetPath       = $Target
-        $sc.Arguments        = '-NoProfile -ExecutionPolicy Bypass -File "' + $Runner + '"'
+        $sc.Arguments        = $Arguments
         $sc.WorkingDirectory = $script:WtfRoot
         $sc.Description      = $Blurb
         $sc.WindowStyle      = 1

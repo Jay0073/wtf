@@ -195,6 +195,13 @@ split, `ALT+SHIFT+arrows` to resize.
 If an application does bind one of them, that application wins while it has
 focus. Rebind with `wtf hotkey install snap CTRL+ALT+S`.
 
+The hotkey windows are launched through `conhost.exe` on purpose. Windows 11
+hosts console applications inside Windows Terminal by default, and a window
+opened that way *is* a terminal window — which would let a snapshot capture
+itself instead of your tab. `conhost` gives it a classic console window instead.
+As a second guard, the snapshot works out which window is its own and rules it
+out before choosing what to capture.
+
 **Installing verifies itself.** Writing the shortcut file is not enough: Windows
 only registers the key once Explorer has read the file, and if it never does the
 key is dead with no error shown anywhere. So `wtf hotkey install` tells the
