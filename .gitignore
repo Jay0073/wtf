@@ -1,3 +1,22 @@
+# Your machine's own state - none of this belongs in the repo.
+# (Comments must be on their own line: git does not strip a trailing comment,
+#  it treats the whole line as the pattern.)
+
+# your root folders and repo groups, with real paths
+config.json
+
+# your saved tab layouts, with real paths
+layouts/
+
+# per-run logs, which record real paths, branches and git output
+logs/
+
+# "already warned about this project's .env" markers
 .envwarn-*
-logs/*
+
+# editor and OS noise
+*.bak
+*.bak-*
 whole-context.txt
+.vscode/
+Thumbs.db

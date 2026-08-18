@@ -1,5 +1,5 @@
-# wtf.ps1 — WorkTree Flow orchestrator (Part 1: Foundation)
-# Requires: PowerShell 7+, Windows Terminal, Git 2.5+, VS Code on PATH
+﻿# wtf.ps1 — WorkTree Flow orchestrator (Part 1: Foundation)
+# Requires: Windows PowerShell 5.1 or PowerShell 7+, Windows Terminal, Git 2.5+
 #
 # Install:
 #   1. Create folder: C:\Users\<you>\.wtf\
@@ -7,8 +7,11 @@
 #   3. Dot-source from your $PROFILE:
 #        . "$env:USERPROFILE\.wtf\wtf.ps1"
 #   4. Reload: . $PROFILE
+#
+# NOTE: this file MUST stay UTF-8 WITH BOM. Without it, Windows PowerShell
+# 5.1 reads it in the ANSI codepage and every box glyph and emoji breaks.
 
-#Requires -Version 7.0
+# Runs on Windows PowerShell 5.1 and PowerShell 7+.
 
 # ============================================================================
 # GLOBAL STATE
@@ -30,68 +33,29 @@ try {
 # PS7's $PSStyle is great but we want consistency across all output.
 $script:T = @{
     # Foregrounds
-    Prompt   = "`e[38;5;81m"     # cyan-ish
-    Ok       = "`e[38;5;42m"     # green
-    Warn     = "`e[38;5;215m"    # amber
-    Fail     = "`e[38;5;203m"    # red
-    Detail   = "`e[38;5;245m"    # muted gray
-    Header   = "`e[38;5;141m"    # purple
-    Accent   = "`e[38;5;111m"    # soft blue
-    Dim      = "`e[2m"
-    Bold     = "`e[1m"
-    Italic   = "`e[3m"
-    Underline= "`e[4m"
-    Reset    = "`e[0m"
+    Prompt   = "$([char]27)[38;5;81m"     # cyan-ish
+    Ok       = "$([char]27)[38;5;42m"     # green
+    Warn     = "$([char]27)[38;5;215m"    # amber
+    Fail     = "$([char]27)[38;5;203m"    # red
+    Detail   = "$([char]27)[38;5;245m"    # muted gray
+    Header   = "$([char]27)[38;5;141m"    # purple
+    Accent   = "$([char]27)[38;5;111m"    # soft blue
+    Dim      = "$([char]27)[2m"
+    Bold     = "$([char]27)[1m"
+    Italic   = "$([char]27)[3m"
+    Underline= "$([char]27)[4m"
+    Reset    = "$([char]27)[0m"
     # Premium-TUI extras: a faint selection backdrop + a bright rail for the
     # active row. Used by the upgraded pickers; nothing else depends on them.
-    SelBg    = "`e[48;5;236m"    # subtle dark-gray row highlight
-    Rail     = "`e[38;5;212m"    # pink-ish accent rail (▌) on the active row
-    Faint    = "`e[38;5;240m"    # fainter than Detail, for glyph rails / hints
+    SelBg    = "$([char]27)[48;5;236m"    # subtle dark-gray row highlight
+    Rail     = "$([char]27)[38;5;212m"    # pink-ish accent rail (▌) on the active row
+    Faint    = "$([char]27)[38;5;240m"    # fainter than Detail, for glyph rails / hints
     # Cursor / line control
-    HideCur  = "`e[?25l"
-    ShowCur  = "`e[?25h"
-    ClearLn  = "`e[2K`r"
-    Up       = "`e[1A"
+    HideCur  = "$([char]27)[?25l"
+    ShowCur  = "$([char]27)[?25h"
+    ClearLn  = "$([char]27)[2K`r"
+    Up       = "$([char]27)[1A"
 }
-
-# Tab colors for Windows Terminal
-$script:TabColors = @{
-    Agent      = '#7C3AED'
-    Planner    = '#F59E0B'
-    RunnerFeat = '#10B981'
-    RunnerMain = '#6B7280'
-}
-
-# ── Agentic terminal "slots" ────────────────────────────────────────────────
-# A slot = one agentic terminal tab tied to one CLI session. Slots are stored
-# per-feature in .wtf-meta.json and are CLI-agnostic: each slot carries the FULL
-# launch/resume command (session id included) that you paste in. wtf's only job
-# is to spawn the tab and run that command verbatim — it never touches whatever
-# the CLI prompts next.
-#
-# There are NO roles. Every terminal is the same kind of thing: a named tab that
-# opens at the feature root (so the agent sees every worktree at once) and runs
-# its saved command. Terminals are auto-named from the Greek pool below, like
-# editor tabs: opening a new one takes the first free name; closing one frees
-# that name for reuse. A single 🤖 glyph fronts every tab; only the name + color
-# differ between them.
-$script:WtfTermGlyph = '🤖'
-
-# The auto-naming pool. `New-WtfNextTermName` hands out the first name not already
-# in use; once all 24 are taken it wraps to alpha-2, beta-2, … (you will never
-# realistically open that many, but it never breaks).
-$script:WtfTermNames = @(
-    'alpha','beta','gamma','delta','epsilon','zeta','eta','theta','iota','kappa',
-    'lambda','mu','nu','xi','omicron','pi','rho','sigma','tau','upsilon',
-    'phi','chi','psi','omega'
-)
-
-# Rotating tab-color palette, indexed by a terminal's position in the Greek pool
-# so each name keeps a stable, distinct color (alpha=blue, beta=green, …).
-$script:WtfTermColors = @(
-    '#3B82F6','#10B981','#F59E0B','#A855F7','#14B8A6','#EF4444','#6366F1','#EC4899',
-    '#84CC16','#F97316','#06B6D4','#8B5CF6'
-)
 
 # A git worktree only checks out TRACKED files, so gitignored-but-useful things
 # (.env, graphify-out/, local config, certs, data) don't come along. wtf copies
@@ -247,7 +211,7 @@ function Write-WtfInfo   { param([string]$M) _wtf_write "  · $M" $script:T.Prom
 function _wtf_visible_len {
     # Character length of a string with ANSI escapes stripped.
     param([string]$S)
-    return ($S -replace "`e\[[\d;]*m", '').Length
+    return ($S -replace ([char]27 + '\[[\d;]*m'), '').Length
 }
 
 function _wtf_fit_ansi {
@@ -262,7 +226,7 @@ function _wtf_fit_ansi {
     if ($Max -le 1) { return '…' }
     $out = ''; $vis = 0; $i = 0
     while ($i -lt $S.Length -and $vis -lt ($Max - 1)) {
-        if ($S[$i] -eq "`e") {
+        if ($S[$i] -eq [char]27) {
             # copy the whole escape sequence (ESC [ ... m) without counting it
             $j = $i
             while ($j -lt $S.Length -and $S[$j] -ne 'm') { $out += $S[$j]; $j++ }
@@ -353,11 +317,34 @@ function Invoke-WtfWithSpinner {
 # No PSReadLine dependency — works in any terminal that handles VT.
 
 function _wtf_render_clear {
+    <#
+    .SYNOPSIS
+        Rewind over $Lines already-drawn rows so the next draw overwrites them.
+    .DESCRIPTION
+        Counting rows is not enough on its own: a row wider than the pane wraps
+        onto a second PHYSICAL line, so moving up once per row leaves the extra
+        line on screen and the list grows with every keypress. After rewinding we
+        therefore clear everything from the cursor to the end of the screen
+        (ESC[0J), which removes any such leftovers. Rows are also truncated to
+        the pane width by _wtf_pick_row, so wrapping should not happen at all.
+    #>
     param([int]$Lines)
     if ($Lines -le 0) { return }
     for ($i = 0; $i -lt $Lines; $i++) {
         [Console]::Out.Write("$($script:T.Up)$($script:T.ClearLn)")
     }
+    [Console]::Out.Write("$([char]27)[0J")
+}
+
+function _wtf_term_width {
+    # Usable width for one row. Falls back to 100 when there is no real console
+    # (piped output, a hook), and always leaves one column spare so a full-width
+    # row cannot trigger the terminal's own line wrap.
+    try {
+        $w = [Console]::WindowWidth
+        if ($w -gt 20) { return $w - 1 }
+    } catch { }
+    return 100
 }
 
 # Premium picker primitives — a left accent rail + subtle row highlight give the
@@ -367,7 +354,8 @@ function _wtf_pick_header {
     param([string]$Prompt, [string]$Hint)
     $T = $script:T
     $hint = if ($Hint) { "  $($T.Faint)$Hint$($T.Reset)" } else { '' }
-    [Console]::Out.WriteLine("$($T.Accent)❯$($T.Reset) $($T.Bold)$Prompt$($T.Reset)$hint")
+    $line = "$($T.Accent)❯$($T.Reset) $($T.Bold)$Prompt$($T.Reset)$hint"
+    [Console]::Out.WriteLine((_wtf_fit_ansi $line (_wtf_term_width)))
 }
 
 function _wtf_pick_row {
@@ -385,15 +373,16 @@ function _wtf_pick_row {
     )
     $T = $script:T
     $g = if ($Glyph) { "$Glyph " } else { '' }
+    $w = _wtf_term_width
     if ($Active) {
         $rail = "$($T.Rail)▌$($T.Reset)"
         $body = "$($T.SelBg)$($T.Bold)$g$Text$($T.Reset)"
         $d    = if ($Desc) { "$($T.SelBg)$($T.Detail)  $Desc$($T.Reset)" } else { '' }
-        [Console]::Out.WriteLine("$rail $body$d")
+        [Console]::Out.WriteLine((_wtf_fit_ansi "$rail $body$d" $w))
     } else {
         $body = "$($T.Detail)$g$Text$($T.Reset)"
         $d    = if ($Desc) { "$($T.Faint)  $Desc$($T.Reset)" } else { '' }
-        [Console]::Out.WriteLine("  $body$d")
+        [Console]::Out.WriteLine((_wtf_fit_ansi "  $body$d" $w))
     }
 }
 
@@ -830,12 +819,6 @@ function Get-WtfFeatureDir {
     Join-Path $ctx.worktreeDir "$Project-$(ConvertTo-WtfSafeName $Branch)"
 }
 
-function Get-WtfWorkspacePath {
-    param($Config, [string]$Context, [string]$Project, [string]$Branch)
-    $ctx = Get-ObjectValue $Config.contexts $Context
-    Join-Path $ctx.workspaceDir "$Project-$(ConvertTo-WtfSafeName $Branch).code-workspace"
-}
-
 function Test-WtfBranchName {
     param([string]$Name)
     if ([string]::IsNullOrWhiteSpace($Name)) { return "Branch name cannot be empty." }
@@ -849,6 +832,45 @@ function Test-WtfBranchName {
 # ============================================================================
 # GIT
 # ============================================================================
+
+function ConvertTo-WtfArgString {
+    <#
+    .SYNOPSIS
+        Join arguments into one Windows command line, quoting as the C runtime
+        expects. Needed on Windows PowerShell 5.1, which has no ArgumentList.
+    .DESCRIPTION
+        The rules are the awkward ones every Windows launcher has to follow: a
+        backslash is literal unless it runs into a quote, in which case the run
+        of backslashes is doubled; an embedded quote is escaped with a
+        backslash; and an argument is only wrapped in quotes when it contains a
+        space, a tab or a quote. Branch names and paths with spaces go through
+        here, so getting this right matters.
+    #>
+    param([string[]]$Values)
+    $out = @()
+    foreach ($v in @($Values)) {
+        $s = [string]$v
+        if ($s -ne '' -and $s -notmatch '[ \t"]') { $out += $s; continue }
+        $sb = New-Object System.Text.StringBuilder
+        [void]$sb.Append('"')
+        $slashes = 0
+        foreach ($ch in $s.ToCharArray()) {
+            if ($ch -eq '\') { $slashes++; continue }
+            if ($ch -eq '"') {
+                [void]$sb.Append('\' * ($slashes * 2 + 1))
+                [void]$sb.Append('"')
+                $slashes = 0
+                continue
+            }
+            if ($slashes -gt 0) { [void]$sb.Append('\' * $slashes); $slashes = 0 }
+            [void]$sb.Append($ch)
+        }
+        if ($slashes -gt 0) { [void]$sb.Append('\' * ($slashes * 2)) }
+        [void]$sb.Append('"')
+        $out += $sb.ToString()
+    }
+    return ($out -join ' ')
+}
 
 function Invoke-WtfGit {
     <#
@@ -881,8 +903,14 @@ function Invoke-WtfGit {
     if (-not $psi.Environment.ContainsKey('GIT_SSH_COMMAND')) {
         $psi.Environment['GIT_SSH_COMMAND'] = 'ssh -o BatchMode=yes'
     }
-    # PS7's ArgumentList works correctly
-    foreach ($a in $GitArgs) { $psi.ArgumentList.Add($a) }
+    # ArgumentList exists only on .NET Core (PowerShell 7). Windows PowerShell
+    # 5.1 runs on .NET Framework, where it is absent and reads as $null. Use it
+    # when it is there, and otherwise build the quoted command line by hand.
+    if ($null -ne $psi.ArgumentList) {
+        foreach ($a in $GitArgs) { $psi.ArgumentList.Add($a) }
+    } else {
+        $psi.Arguments = (ConvertTo-WtfArgString -Values $GitArgs)
+    }
 
     $proc = [System.Diagnostics.Process]::Start($psi)
     $stdout = $proc.StandardOutput.ReadToEnd()
@@ -1178,131 +1206,6 @@ function New-WtfMeta {
 
 # ── Slot helpers ────────────────────────────────────────────────────────────
 
-function New-WtfSlot {
-    <#
-    .SYNOPSIS
-        Build one terminal slot. $Command is the FULL launch/resume command (with
-        the session id baked in) that wtf runs verbatim; empty = "open the tab
-        but don't auto-run anything" (you start it yourself). Terminals have no
-        role — just a name and a command.
-    #>
-    param(
-        [Parameter(Mandatory)][string]$Name,   # short label -> tab title
-        [string]$Command = ''
-    )
-    @{ name = $Name; command = $Command }
-}
-
-function New-WtfNextTermName {
-    <#
-    .SYNOPSIS
-        The first Greek name not already used by $ExistingNames (case-insensitive).
-        Once all 24 are taken it wraps to alpha-2, beta-2, … so it never runs out.
-        Closing a terminal frees its name, so the next add reuses the lowest gap.
-    #>
-    param([string[]]$ExistingNames = @())
-    $used = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($n in @($ExistingNames)) { if ($n) { [void]$used.Add($n) } }
-    foreach ($n in $script:WtfTermNames) { if (-not $used.Contains($n)) { return $n } }
-    # All base names taken — wrap with a numeric suffix (alpha-2, beta-2, …).
-    $round = 2
-    while ($true) {
-        foreach ($n in $script:WtfTermNames) {
-            $cand = "$n-$round"
-            if (-not $used.Contains($cand)) { return $cand }
-        }
-        $round++
-    }
-}
-
-function Get-WtfTermColor {
-    # Stable color for a terminal name: keyed to the base Greek name's index so
-    # alpha is always blue, beta always green, etc. Unknown/custom names fall back
-    # to a hash so they still get a consistent, distinct-ish color.
-    param([string]$Name)
-    $base = ($Name -replace '-\d+$','').ToLower()
-    $idx  = [Array]::IndexOf($script:WtfTermNames, $base)
-    if ($idx -lt 0) {
-        $h = 0; foreach ($c in $base.ToCharArray()) { $h = ($h * 31 + [int]$c) }
-        $idx = [Math]::Abs($h)
-    }
-    return $script:WtfTermColors[$idx % $script:WtfTermColors.Count]
-}
-
-function _wtf_normalize_slots {
-    # Shared parser for both active + archived slot arrays from a meta property.
-    # Slots may have EMPTY commands (e.g., a fresh placeholder from `wtf create` —
-    # you paste the session id into the blank terminal). Non-empty commands are
-    # real resumed sessions. Both are valid and shown in the launcher.
-    #
-    # Back-compat: old metas stored a `role` key — we simply ignore it now. A slot
-    # only needs a `name`; a missing/blank name is auto-filled from the Greek pool
-    # so a hand-edited or legacy meta never produces a nameless tab.
-    param($Raw)
-    $out = @()
-    $seen = @()
-    foreach ($s in @($Raw)) {
-        if (-not $s) { continue }
-        $name = if (Test-ObjectHasKey $s 'name') { [string](Get-ObjectValue $s 'name') } else { '' }
-        if ([string]::IsNullOrWhiteSpace($name)) { $name = New-WtfNextTermName -ExistingNames $seen }
-        $seen += $name
-        $cmd = if (Test-ObjectHasKey $s 'command') { [string](Get-ObjectValue $s 'command') } else { '' }
-        $rec = @{ name = $name; command = $cmd }
-        if (Test-ObjectHasKey $s 'archivedAt') { $rec.archivedAt = [string](Get-ObjectValue $s 'archivedAt') }
-        $out += $rec
-    }
-    return $out
-}
-
-function Get-WtfSlots {
-    <#
-    .SYNOPSIS
-        The feature's ACTIVE agent terminals. `wtf create` seeds one blank
-        placeholder; you paste its resume command in `wtf edit`.
-    #>
-    param($Meta)
-    $raw = if ($Meta -and (Test-ObjectHasKey $Meta 'slots')) { Get-ObjectValue $Meta 'slots' } else { $null }
-    return @(_wtf_normalize_slots $raw)
-}
-
-function Get-WtfArchivedSlots {
-    <#
-    .SYNOPSIS
-        The feature's ARCHIVED sessions — real sessions you set aside ("not
-        using") but kept so you can review / reopen them later via `wtf sessions`.
-    #>
-    param($Meta)
-    $raw = if ($Meta -and (Test-ObjectHasKey $Meta 'archivedSlots')) { Get-ObjectValue $Meta 'archivedSlots' } else { $null }
-    return @(_wtf_normalize_slots $raw)
-}
-
-function Get-WtfSlotTitle {
-    # The tab title for a terminal: "<glyph> <name>".
-    param($Slot)
-    return "$($script:WtfTermGlyph) $($Slot.name)"
-}
-
-function Set-WtfMetaSlots {
-    <#
-    .SYNOPSIS
-        Write the active + archived slot arrays onto a meta object (in place),
-        coping with both hashtable (freshly built) and PSCustomObject (from disk).
-    #>
-    param(
-        [Parameter(Mandatory)]$Meta,
-        [Parameter(Mandatory)][AllowEmptyCollection()]$Active,
-        [AllowEmptyCollection()]$Archived = @()
-    )
-    if ($Meta -is [hashtable]) {
-        $Meta.slots = @($Active)
-        $Meta.archivedSlots = @($Archived)
-    } else {
-        $Meta | Add-Member -NotePropertyName slots -NotePropertyValue (@($Active)) -Force
-        $Meta | Add-Member -NotePropertyName archivedSlots -NotePropertyValue (@($Archived)) -Force
-    }
-    return $Meta
-}
-
 function Resolve-WtfFeatureLayout {
     <#
     .SYNOPSIS
@@ -1391,166 +1294,6 @@ function Read-WtfMeta {
     $legacy = Join-Path $FeatureDir '.wtf-meta.json'
     if (Test-Path $legacy) { return Read-WtfJson -Path $legacy }
     return $null
-}
-
-# ============================================================================
-# WORKSPACE FILE
-# ============================================================================
-
-function Write-WtfWorkspace {
-    <#
-    .SYNOPSIS
-        Write a .code-workspace spanning the feature's worktrees plus any
-        dependency repos (which point at their main checkout, not a worktree).
-    #>
-    param(
-        [Parameter(Mandatory)][string]$WorkspacePath,
-        [Parameter(Mandatory)][string]$FeatureDir,
-        [Parameter(Mandatory)]$Worktrees,        # array of @{ Name; Dir }
-        $Deps = @(),                             # array of @{ Name; Dir }
-        [string[]]$IgnoreRepos = @()             # source main-checkouts to hide as phantoms
-    )
-    # Folders are addressed relative to the workspace file's location.
-    $wsParent = Split-Path $WorkspacePath -Parent
-    $rel = { param($abs) [System.IO.Path]::GetRelativePath($wsParent, $abs) -replace '\\','/' }
-
-    $list = @($Worktrees)
-    # Mono = the single worktree IS the feature dir. Its repo root already holds
-    # the .plan/ folder, so one folder (the repo) is enough — no separate "plan".
-    $isMono = ($list.Count -eq 1 -and $list[0].Dir -eq $FeatureDir)
-
-    $allFolders = @()
-    if (-not $isMono) {
-        # Multi: point the plan folder at .plan/ specifically. Pointing it at the
-        # feature root would make VS Code also render the worktree subfolders as
-        # children of "plan" (duplicating them). .plan/ holds the plan docs.
-        $planDir = Join-Path $FeatureDir '.plan'
-        if (-not (Test-Path $planDir)) { New-Item -ItemType Directory -Path $planDir -Force | Out-Null }
-        $allFolders += @{ name = "📋 plan"; path = (& $rel $planDir) }
-    }
-    # 🌿 = a branched worktree (you develop + commit here, on the feature branch).
-    # 📦 = a dependency repo shown at its MAIN checkout (read-along, not branched).
-    foreach ($w in $list)  { $allFolders += @{ name = "🌿 $($w.Name)"; path = (& $rel $w.Dir) } }
-    foreach ($d in $Deps)  { $allFolders += @{ name = "📦 $($d.Name)"; path = (& $rel $d.Dir) } }
-
-    # Each worktree is its own repo — VS Code shows them all (good: commit/push
-    # per repo). But it ALSO follows a worktree's .git link and surfaces its
-    # SOURCE main-checkout as a phantom repo. We hide those phantoms two ways:
-    #  • git.ignoredRepositories — the exact phantom roots (in every path spelling,
-    #    so VS Code's finicky matcher always finds one). NEVER a worktree's own path.
-    #  • git.openRepositoryInParentFolders:'never' — stop VS Code climbing UP out of
-    #    a folder to open a parent repo (the over-discovery that makes worktrees
-    #    "disappear" / the wrong repo show — the multi bug).
-    $settings = @{
-        'window.title'                      = '${rootName} — wtf'
-        'git.openRepositoryInParentFolders' = 'never'
-    }
-    $ignore = @()
-    foreach ($p in @($IgnoreRepos | Where-Object { $_ })) { $ignore += Resolve-WtfRepoRootForms -Path $p }
-    $ignore = @($ignore | Where-Object { $_ } | Select-Object -Unique)
-    if ($ignore.Count -gt 0) { $settings['git.ignoredRepositories'] = $ignore }
-
-    $ws = @{ folders = $allFolders; settings = $settings }
-    Write-WtfJson -Path $WorkspacePath -Object $ws
-}
-
-function Resolve-WtfRepoRootForms {
-    <#
-    .SYNOPSIS
-        Every plausible spelling of a repo's root path, so VS Code's
-        git.ignoredRepositories matcher (whatever normalization it uses) finds one:
-        git's authoritative toplevel (forward + back slash) plus the resolved
-        filesystem path (forward + back slash). Returns a unique string array.
-        Used ONLY to build ignore lists — NEVER fed a worktree's own path.
-    #>
-    param([Parameter(Mandatory)][string]$Path)
-    $forms = @()
-    $abs = $Path
-    try { $abs = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path } catch { }
-    $forms += ($abs -replace '\\','/')
-    $forms += ($abs -replace '/','\')
-    if (Test-Path $Path) {
-        # git's own absolute toplevel is exactly what VS Code's git ext compares to.
-        $g = Invoke-WtfGit -WorkingDir $Path -GitArgs @('rev-parse','--path-format=absolute','--show-toplevel')
-        if ($g.Ok -and $g.Stdout) {
-            $top = $g.Stdout.Trim()
-            $forms += ($top -replace '\\','/')
-            $forms += ($top -replace '/','\')
-        }
-    }
-    return @($forms | Where-Object { $_ } | Select-Object -Unique)
-}
-
-function Set-WtfVscodeRepoSettings {
-    <#
-    .SYNOPSIS
-        Merge git/SCM settings into a folder's .vscode/settings.json so VS Code's
-        Source Control shows ONLY the repos you want.
-
-        Why this is needed: a git worktree's .git is a FILE pointing back at the
-        source repo's shared common-dir, so VS Code DISCOVERS the source
-        main-checkout (and vice-versa) and shows it as an extra repo in SCM. The
-        only reliable per-folder controls are two settings, used together:
-          • git.ignoredRepositories            — hide these exact repo roots from SCM
-          • git.openRepositoryInParentFolders  — 'never' stops VS Code climbing UP
-            out of the opened folder to discover/open a parent repo (the class of
-            over-discovery that makes worktrees "disappear" / the wrong repo show)
-
-        We MERGE (never clobber the user's file), union ignore entries, and git-
-        exclude the settings file locally so it's never committed to the branch.
-        IMPORTANT: $IgnoreRepos must be PHANTOM roots only — never the path of the
-        repo we're configuring, or VS Code would hide the repo you actually want.
-    #>
-    param(
-        [Parameter(Mandatory)][string]$TargetDir,        # folder VS Code opens (gets .vscode)
-        [string[]]$IgnoreRepos = @(),                    # phantom repo roots to hide
-        [switch]$NoParentFolderRepos                      # add openRepositoryInParentFolders=never
-    )
-    $ignore = @()
-    foreach ($p in @($IgnoreRepos | Where-Object { $_ })) { $ignore += Resolve-WtfRepoRootForms -Path $p }
-    $ignore = @($ignore | Where-Object { $_ } | Select-Object -Unique)
-    if ($ignore.Count -eq 0 -and -not $NoParentFolderRepos) { return }
-
-    $vscodeDir    = Join-Path $TargetDir '.vscode'
-    $settingsPath = Join-Path $vscodeDir 'settings.json'
-    if (-not (Test-Path $vscodeDir)) { New-Item -ItemType Directory -Path $vscodeDir -Force | Out-Null }
-
-    # Load existing settings (tolerate a missing/blank/corrupt file).
-    $settings = $null
-    if (Test-Path $settingsPath) {
-        try { $settings = Get-Content $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop } catch { $settings = $null }
-    }
-    if (-not $settings) { $settings = [pscustomobject]@{} }
-
-    if ($ignore.Count -gt 0) {
-        $existing = @()
-        if (Test-ObjectHasKey $settings 'git.ignoredRepositories') {
-            $existing = @(Get-ObjectValue $settings 'git.ignoredRepositories')
-        }
-        $merged = @($existing + $ignore | Where-Object { $_ } | Select-Object -Unique)
-        $settings | Add-Member -NotePropertyName 'git.ignoredRepositories' -NotePropertyValue $merged -Force
-    }
-    if ($NoParentFolderRepos) {
-        $settings | Add-Member -NotePropertyName 'git.openRepositoryInParentFolders' -NotePropertyValue 'never' -Force
-    }
-
-    Write-WtfJson -Path $settingsPath -Object $settings
-    # Keep the .vscode/settings.json out of the branch (it's wtf bookkeeping). Only
-    # exclude when this folder is itself a git work area; harmless otherwise.
-    if (Test-Path (Join-Path $TargetDir '.git')) {
-        Add-WtfGitExclude -WorktreeDir $TargetDir -Patterns @('/.vscode/settings.json')
-    }
-    Write-WtfLog "VSCODE-SETTINGS: $TargetDir ignore=[$($ignore -join ', ')] noParent=$($NoParentFolderRepos.IsPresent)"
-}
-
-function Set-WtfMonoIgnoredRepos {
-    # Back-compat shim — delegates to the general helper with the parent-folder
-    # guard on (a worktree never wants a parent repo opened).
-    param(
-        [Parameter(Mandatory)][string]$RepoDir,
-        [Parameter(Mandatory)][string[]]$IgnoreRepos
-    )
-    Set-WtfVscodeRepoSettings -TargetDir $RepoDir -IgnoreRepos $IgnoreRepos -NoParentFolderRepos
 }
 
 # ============================================================================
@@ -1777,131 +1520,6 @@ _Things you resolve by BUILDING, not by planning. Delete each once answered._
             Replace('{{DATE}}',   $date)
         Write-WtfFile -Path $logPath -Content $logContent
     }
-}
-
-# ============================================================================
-# WINDOWS TERMINAL LAUNCH
-# ============================================================================
-
-function _wtf_wt_quote {
-    # Quote a single wt token. ';' (sub-command separator) stays bare; tokens
-    # with spaces/quotes (titles like "🤖 citysense [F]", paths) get quoted.
-    param([string]$Token)
-    if ($Token -eq ';') { return ';' }
-    if ($Token -match '[\s"]') { return '"' + ($Token -replace '"','\"') + '"' }
-    return $Token
-}
-
-function Invoke-WtfWt {
-    <#
-    .SYNOPSIS
-        Launch Windows Terminal. The Argv is already an array of tokens. We
-        quote titles-with-spaces but pass the result as an array to -ArgumentList,
-        not as a pre-joined string (which would lose token boundaries).
-    #>
-    param([Parameter(Mandatory)][string[]]$Argv)
-    if (-not (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
-        Write-WtfWarn "Windows Terminal (wt.exe) not found — skipping terminal launch."
-        Write-WtfDetail "Install it from the Microsoft Store to get agent/runner tabs."
-        return
-    }
-    $quoted = @($Argv) | ForEach-Object { _wtf_wt_quote $_ }
-    Write-WtfLog "WT: wt $($quoted -join ' ')"
-    Start-Process -FilePath 'wt.exe' -ArgumentList $quoted
-}
-
-function _wtf_slot_launch_cmd {
-    <#
-    .SYNOPSIS
-        Build the shell command a slot's tab runs. If the slot has a saved
-        command (a CLI resume line with the session id baked in), we hand it to
-        pwsh with -NoExit so the tab stays open and YOU answer whatever the CLI
-        prompts next — wtf never scripts past launching it. Empty command =>
-        $null (open the tab, run nothing).
-
-        We BAKE a `Set-Location` to $WorkingDir into the script before the user's
-        command. `wt -d` alone is unreliable: pwsh's own profile ($PROFILE) often
-        runs `Set-Location ~` (or similar) at startup, which would drop the agent
-        in the home dir instead of the worktree. Setting the location *inside* the
-        launched script, after the profile has run, guarantees the agent starts in
-        the right folder.
-
-        The whole thing is base64 (UTF-16LE) and run via pwsh -EncodedCommand, so
-        the user's command can contain ANYTHING — spaces, quotes, and crucially
-        ';' (wt's own sub-command separator) — without wt or the shell choking.
-    #>
-    param($Slot, [string]$WorkingDir = '')
-    $cmd = [string]$Slot.command
-    if ([string]::IsNullOrWhiteSpace($cmd)) { return $null }
-    $script = if ($WorkingDir) {
-        # Single-quote the path and double any embedded quotes for a safe literal.
-        $safeDir = $WorkingDir -replace "'", "''"
-        "Set-Location -LiteralPath '$safeDir'`n$cmd"
-    } else { $cmd }
-    $bytes = [System.Text.Encoding]::Unicode.GetBytes($script)
-    $enc   = [Convert]::ToBase64String($bytes)
-    return @('pwsh','-NoExit','-EncodedCommand', $enc)
-}
-
-function Invoke-WtfLaunchAgents {
-    <#
-    .SYNOPSIS
-        Open the Agent window from the feature's terminals. Every terminal is its
-        OWN tab (no panes, no grouping), rooted at the feature dir so a root-level
-        agent sees all worktrees at once. Each tab is colored from its name's
-        stable palette slot. A terminal with a saved command auto-runs it (resume
-        line w/ session id) verbatim; a blank one just opens its tab for you to
-        start the CLI yourself.
-    #>
-    param(
-        [Parameter(Mandatory)][string]$WindowName,
-        [Parameter(Mandatory)]$Slots,            # array of terminal hashtables
-        [Parameter(Mandatory)][string]$FeatureDir
-    )
-    $list = @($Slots)
-    if ($list.Count -eq 0) { return }
-
-    $argv  = @('-w', $WindowName)
-    $first = $true
-    foreach ($slot in $list) {
-        $title = Get-WtfSlotTitle $slot
-        $color = Get-WtfTermColor $slot.name
-        $runv  = _wtf_slot_launch_cmd $slot -WorkingDir $FeatureDir
-        # NOTE: build $seg as [array]@(...) — a bare @('new-tab') returned from an
-        # `if` unwraps to a scalar string, and a later `$seg += @(...)` would then
-        # STRING-concat instead of array-append, fusing tokens.
-        $seg = [array]@()
-        if (-not $first) { $seg += ';' }
-        $seg += @('new-tab','-d', $FeatureDir, '--title', $title, '--tabColor', $color)
-        if ($runv) { $seg += $runv }
-        $argv += $seg
-        $first = $false
-    }
-    Invoke-WtfWt -Argv $argv
-}
-
-function Invoke-WtfLaunchRunners {
-    <#
-    .SYNOPSIS
-        Open the Runner window: green tabs for worktree repos (pointing at the
-        worktree), gray tabs for dependency repos (pointing at main).
-    #>
-    param(
-        [Parameter(Mandatory)][string]$WindowName,
-        [Parameter(Mandatory)]$Worktrees,        # array of @{ Name; Dir }
-        $Deps = @()                              # array of @{ Name; Dir }
-    )
-    $tabs = @()
-    foreach ($w in @($Worktrees)) { $tabs += @{ Title = "🚀 $($w.Name) [F]"; Dir = $w.Dir; Color = $script:TabColors.RunnerFeat } }
-    foreach ($d in @($Deps))      { $tabs += @{ Title = "📦 $($d.Name) [M]"; Dir = $d.Dir; Color = $script:TabColors.RunnerMain } }
-    if ($tabs.Count -eq 0) { return }
-
-    $argv = @('-w', $WindowName)
-    for ($i = 0; $i -lt $tabs.Count; $i++) {
-        if ($i -eq 0) { $argv += @('new-tab') } else { $argv += @(';','new-tab') }
-        $argv += @('-d', $tabs[$i].Dir, '--title', $tabs[$i].Title, '--tabColor', $tabs[$i].Color)
-    }
-    Invoke-WtfWt -Argv $argv
 }
 
 # ============================================================================
@@ -2184,12 +1802,11 @@ function Invoke-WtfCreate {
     $Branch = Select-WtfBranch -Provided $Branch -SourceRepos @($srcRepos)
     if (-not $Branch) { return }
 
-    $featureDir  = Get-WtfFeatureDir    $config $Context $projectName $Branch
-    $workspaceFp = Get-WtfWorkspacePath $config $Context $projectName $Branch
+    $featureDir = Get-WtfFeatureDir $config $Context $projectName $Branch
 
     if (Test-Path $featureDir) {
         Write-WtfFail "Feature directory already exists: $featureDir"
-        Write-WtfDetail "Use ``wtf open`` to reopen, or ``wtf delete`` to clean up."
+        Write-WtfDetail "Use ``wtf delete`` to clean it up first."
         return
     }
 
@@ -2303,26 +1920,13 @@ function Invoke-WtfCreate {
         Write-WtfOk "git-ignored .plan/ locally (won't be committed)"
     }
 
-    # A workspace only earns its keep when it spans MULTIPLE folders. A single
-    # repo doesn't need one (it just nests the repo as a child folder), so for
-    # mono we skip the workspace entirely and `wtf open` opens the repo directly.
-    if (-not $isMono) {
-        Write-WtfWorkspace -WorkspacePath $workspaceFp -FeatureDir $featureDir -Worktrees @($wtList) -Deps @($depNorm) -IgnoreRepos @($ignoreRepos)
-        Write-WtfOk "workspace written: $(Split-Path $workspaceFp -Leaf)"
-    }
-
     $appPaths = @{}
     foreach ($short in $wtNames) { $appPaths[$short] = $worktreeMap[$short] }
     $metaDeps = foreach ($d in $depList) { @{ name = $d.Name; path = $d.RelPath } }
     $metaApps = if ($isMono) { @() } else { @($wtNames) }
-    # Seed ONE blank terminal ('alpha') with no command, so a single empty tab
-    # opens on first `wtf open`. You start your CLI there, then `wtf edit` to save
-    # its resume command (and add more terminals — beta, gamma… — if you want).
-    $initialSlots = @( New-WtfSlot -Name (New-WtfNextTermName) -Command '' )
     $meta = New-WtfMeta -Context $Context -Project $projectName -Branch $Branch `
                         -Type $(if ($isMono) { 'mono' } else { 'multi' }) `
-                        -Apps $metaApps -AppPaths $appPaths -Deps @($metaDeps) -Panes $Panes.IsPresent
-    Set-WtfMetaSlots -Meta $meta -Active $initialSlots -Archived @() | Out-Null
+                        -Apps $metaApps -AppPaths $appPaths -Deps @($metaDeps)
     Save-WtfMeta -FeatureDir $featureDir -Meta $meta
     Write-WtfOk ".wtf-meta.json saved"
 
@@ -2341,11 +1945,21 @@ function Invoke-WtfCreate {
     )
     if ($depList.Count -gt 0) { $sumLines += "$($script:T.Bold)Deps:$($script:T.Reset)     $((@($depList | ForEach-Object { $_.Name })) -join ', ')" }
     $sumLines += "$($script:T.Bold)Path:$($script:T.Reset)     $featureDir"
-    $sumLines += ""
-    $sumLines += "$($script:T.Detail)Opening VS Code + terminal windows...$($script:T.Reset)"
     Write-WtfSummary -Title "Feature ready: $Branch" -Lines $sumLines
 
-    Invoke-WtfOpen -Context $Context -Project $projectName -Branch $Branch -Panes:$Panes
+    # Nothing is opened. You arrange your own panes, cd into whichever path you
+    # want, and `wtf snap` saves that arrangement as a layout.
+    Write-WtfHeader "Paths"
+    foreach ($w in $wtList) {
+        _wtf_write "  $($script:T.Ok)$($w.Name)$($script:T.Reset)"
+        _wtf_write "    $($w.Dir)"
+    }
+    foreach ($d in $depNorm) {
+        _wtf_write "  $($script:T.Faint)$($d.Name)  (dependency)$($script:T.Reset)"
+        _wtf_write "    $($d.Dir)"
+    }
+    Write-WtfDetail ""
+    Write-WtfDetail "Copy a path into whichever pane you want, then run ``wtf snap`` to save the tab."
 }
 
 function New-WtfWorktree {
@@ -2565,17 +2179,11 @@ function Invoke-WtfAdd {
     foreach ($d in @($meta.deps)) { if ($d) { $deps += @{ name = (Get-ObjectValue $d 'name'); path = (Get-ObjectValue $d 'path') } } }
     foreach ($newDep in $finalAddDeps) { $deps += $newDep }
 
-    # Preserve the feature's agent terminals (active + archived) — adding a repo
-    # must not reset them.
-    $keepSlots    = @(Get-WtfSlots $meta)
-    $keepArchived = @(Get-WtfArchivedSlots $meta)
     $newMeta = New-WtfMeta -Context $Context -Project $Project -Branch $Branch -Type 'multi' `
-                           -Apps $newApps -AppPaths $appPaths -Deps @($deps) -Panes ([bool]$meta.panes) `
-                           -Slots $keepSlots -ArchivedSlots $keepArchived
+                           -Apps $newApps -AppPaths $appPaths -Deps @($deps)
     $newMeta.createdAt = $meta.createdAt
     Save-WtfMeta -FeatureDir $featureDir -Meta $newMeta
 
-    $wsPath = Get-WtfWorkspacePath $config $Context $Project $Branch
     $layout = Resolve-WtfFeatureLayout -Config $config -Meta $newMeta -FeatureDir $featureDir
 
     # Junction any newly-added deps into the feature dir (idempotent — existing
@@ -2588,13 +2196,6 @@ function Invoke-WtfAdd {
             }
         }
     }
-
-    # Hide phantoms: branched repos' source main-checkouts AND each dep's git repo.
-    $ignoreRepos = @()
-    foreach ($w in @($layout.Worktrees)) { $ignoreRepos += Join-Path $layout.MainDir $w.RelPath }
-    foreach ($d in @($layout.Deps))      { $ignoreRepos += $d.Dir }
-    Write-WtfWorkspace -WorkspacePath $wsPath -FeatureDir $featureDir -Worktrees @($layout.Worktrees) -Deps @($layout.Deps) -IgnoreRepos @($ignoreRepos)
-    Write-WtfOk "workspace updated (VS Code will hot-reload)"
 
     $summaryLines = @()
     if ($newApps.Count -gt 0) {
@@ -2630,7 +2231,7 @@ function Invoke-WtfAddRollback {
 # OUT of a feature without tearing the whole feature down. Worktree repos get
 # `git worktree remove`d (with the same dirty/unpushed safety as `wtf delete`);
 # deps get their junction unlinked (the dep's main checkout is NEVER touched).
-# Meta + workspace are rebuilt afterward so VS Code hot-reloads the new layout.
+# Meta is rebuilt afterward so the feature description stays accurate.
 
 function Invoke-WtfRemove {
     param(
@@ -2770,14 +2371,14 @@ function Invoke-WtfRemove {
     $removedWt = @()
     if ($wtChosen.Count -gt 0) {
         Write-WtfHeader "Worktrees"
-        Write-WtfDetail "If removal stalls, close terminals/VS Code tabs cwd'd into these repos."
+        Write-WtfDetail "If removal stalls, close any pane sitting inside these repos."
         foreach ($w in $wtChosen) {
             Write-WtfStep "$($w.Name)"
             if (Test-WtfIsGitRepo $w.Src) {
                 $r = Invoke-WtfGit -WorkingDir $w.Src -GitArgs @('worktree','remove','--force', $w.Dir)
                 if (-not $r.Ok) {
                     if ($r.Stderr -match 'Permission denied|being used|access') {
-                        Write-WtfWarn "  files locked — close VS Code/terminals on this repo"
+                        Write-WtfWarn "  files locked - close any pane sitting in this repo"
                     } else {
                         Write-WtfWarn "  git worktree remove failed: $($r.Stderr)"
                     }
@@ -2846,22 +2447,10 @@ function Invoke-WtfRemove {
         $deps += @{ name = $dn; path = (Get-ObjectValue $d 'path') }
     }
 
-    $keepSlots    = @(Get-WtfSlots $meta)
-    $keepArchived = @(Get-WtfArchivedSlots $meta)
     $newMeta = New-WtfMeta -Context $Context -Project $Project -Branch $Branch -Type 'multi' `
-                           -Apps $newApps -AppPaths $appPaths -Deps @($deps) -Panes ([bool]$meta.panes) `
-                           -Slots $keepSlots -ArchivedSlots $keepArchived
+                           -Apps $newApps -AppPaths $appPaths -Deps @($deps)
     $newMeta.createdAt = $meta.createdAt
     Save-WtfMeta -FeatureDir $featureDir -Meta $newMeta
-
-    # ── Rebuild the workspace file ────────────────────────────────────
-    $wsPath   = Get-WtfWorkspacePath $config $Context $Project $Branch
-    $newLayout = Resolve-WtfFeatureLayout -Config $config -Meta $newMeta -FeatureDir $featureDir
-    $ignoreRepos = @()
-    foreach ($w in @($newLayout.Worktrees)) { $ignoreRepos += Join-Path $newLayout.MainDir $w.RelPath }
-    foreach ($d in @($newLayout.Deps))      { $ignoreRepos += $d.Dir }
-    Write-WtfWorkspace -WorkspacePath $wsPath -FeatureDir $featureDir -Worktrees @($newLayout.Worktrees) -Deps @($newLayout.Deps) -IgnoreRepos @($ignoreRepos)
-    Write-WtfOk "workspace updated (VS Code will hot-reload)"
 
     # ── Offer to delete the local branch for removed worktree repos ───
     if ($removedWt.Count -gt 0) {
@@ -2888,7 +2477,7 @@ function Invoke-WtfRemove {
     if ($stuck.Count -gt 0) {
         Write-WtfSummary -Title "Partially removed from: $Branch" -Color $script:T.Warn -Lines @(
             "$($script:T.Warn)Locked (still on disk):$($script:T.Reset) $($stuck -join ', ')",
-            "$($script:T.Detail)Close VS Code + terminals on those repos, then run ``wtf remove`` again.$($script:T.Reset)"
+            "$($script:T.Detail)Close any pane sitting in those repos, then run ``wtf remove`` again.$($script:T.Reset)"
         )
         return
     }
@@ -2904,93 +2493,6 @@ function Invoke-WtfRemove {
 # AGENTIC TERMINAL SLOTS — walk-through + preview
 # ============================================================================
 
-function Show-WtfSlotPreview {
-    <#
-    .SYNOPSIS
-        One-glance summary of what `wtf open` will spawn — one tab per terminal,
-        e.g.  🤖 alpha  ·  🤖 beta  ·  🤖 gamma
-    #>
-    param([Parameter(Mandatory)]$Slots)
-    $list = @($Slots)
-    if ($list.Count -eq 0) { Write-WtfDetail "(no agent terminals configured yet — run ``wtf edit``)"; return }
-    $T = $script:T
-    $parts = @($list | ForEach-Object { Get-WtfSlotTitle $_ })
-    _wtf_write "  $($parts -join "   $($T.Faint)·$($T.Reset)   ")"
-}
-
-function Read-WtfInlineForm {
-    <#
-    .SYNOPSIS
-        A two-field inline editor for ONE terminal: Name + Command shown together,
-        edited in a single pass. ↑↓ / Tab move between the two fields; type to edit
-        the focused field (Backspace deletes); Enter commits the whole row; Esc
-        cancels (no change). Returns @{ Name; Command } or $null on cancel.
-
-        This is the "all options at once, single go" edit: you can rename and paste
-        the resume command without leaving the form or pressing Enter between them.
-    #>
-    param([string]$Name = '', [string]$Command = '')
-    $T = $script:T
-    $fields = @(
-        @{ Label = 'Name'   ; Value = [string]$Name    ; Hint = 'short tab label (Greek auto-name; type to override)' },
-        @{ Label = 'Command'; Value = [string]$Command ; Hint = 'full resume command, session id included — blank = none' }
-    )
-    $fi = 0
-    $rendered = 0
-    [Console]::Out.Write($T.ShowCur)
-    try {
-        while ($true) {
-            _wtf_render_clear $rendered
-            $lines = 0
-            [Console]::Out.WriteLine("$($T.Accent)❯$($T.Reset) $($T.Bold)Edit terminal$($T.Reset)  $($T.Faint)↑↓/Tab move · Enter save · Esc cancel$($T.Reset)"); $lines++
-            for ($i = 0; $i -lt $fields.Count; $i++) {
-                $f = $fields[$i]
-                $on = ($i -eq $fi)
-                $lbl = $f.Label.PadRight(8)
-                if ($on) {
-                    $rail = "$($T.Rail)▌$($T.Reset)"
-                    # Trailing block shows where the caret sits in the focused field.
-                    [Console]::Out.WriteLine("$rail $($T.Bold)$lbl$($T.Reset) $($T.Accent)›$($T.Reset) $($f.Value)$($T.Accent)▏$($T.Reset)")
-                } else {
-                    $shown = if ([string]::IsNullOrEmpty($f.Value)) { "$($T.Faint)(empty)$($T.Reset)" } else { "$($T.Detail)$($f.Value)$($T.Reset)" }
-                    [Console]::Out.WriteLine("  $($T.Faint)$lbl$($T.Reset)   $shown")
-                }
-                $lines++
-            }
-            [Console]::Out.WriteLine("  $($T.Faint)$($fields[$fi].Hint)$($T.Reset)"); $lines++
-            $rendered = $lines
-
-            $key = [Console]::ReadKey($true)
-            switch ($key.Key) {
-                'UpArrow'   { $fi = ($fi - 1 + $fields.Count) % $fields.Count; continue }
-                'DownArrow' { $fi = ($fi + 1) % $fields.Count; continue }
-                'Tab'       { $fi = ($fi + 1) % $fields.Count; continue }
-                'Enter' {
-                    _wtf_render_clear $rendered
-                    $nm = $fields[0].Value.Trim()
-                    $cm = $fields[1].Value.Trim()
-                    return @{ Name = $nm; Command = $cm }
-                }
-                'Escape' {
-                    _wtf_render_clear $rendered
-                    return $null
-                }
-                'Backspace' {
-                    $v = $fields[$fi].Value
-                    if ($v.Length -gt 0) { $fields[$fi].Value = $v.Substring(0, $v.Length - 1) }
-                    continue
-                }
-            }
-            # Printable character → append to the focused field.
-            $ch = $key.KeyChar
-            if ($ch -and [int]$ch -ge 32) { $fields[$fi].Value += $ch }
-        }
-    }
-    finally {
-        [Console]::Out.Write($T.HideCur)
-    }
-}
-
 function _wtf_now_iso { return (Get-Date -Format o) }
 
 function _wtf_truncate {
@@ -3000,263 +2502,6 @@ function _wtf_truncate {
     if ($Max -le 1) { return $Text.Substring(0, [Math]::Max(0,$Max)) }
     return $Text.Substring(0, $Max - 1) + '…'
 }
-
-function Invoke-WtfSlotBoard {
-    <#
-    .SYNOPSIS
-        Live, navigable board for a feature's agent terminals. One screen that
-        redraws in place: a list of terminals you operate with the keyboard.
-
-          ↑↓  move cursor        enter  edit the row (name + command, one pass)
-          a   add a terminal     x      archive / remove the row
-          r   restore archived   s      save & exit       esc  cancel
-
-        Terminals have no roles — each is just a named tab that runs its command.
-        New terminals are auto-named from the Greek pool (alpha, beta, …); the
-        lowest free name is reused after you remove one. `x` on a row WITH a saved
-        command archives it (kept for `wtf sessions`); `x` on a blank row just
-        removes it. Saving keeps every row that has a name (blank-command rows are
-        kept too — they open as empty tabs you start yourself).
-
-        Returns @{ Active = <slots>; Archived = <slots> } or $null on cancel.
-    #>
-    param(
-        [Parameter(Mandatory)][string]$Context,
-        [Parameter(Mandatory)][string]$Project,
-        [Parameter(Mandatory)][string]$Branch,
-        [Parameter(Mandatory)]$ExistingSlots,
-        $ArchivedSlots = @()
-    )
-    $T = $script:T
-
-    # Working rows: each @{ name; command }.
-    $rows = @()
-    foreach ($s in @($ExistingSlots)) { $rows += @{ name = [string]$s.name; command = [string]$s.command } }
-    $archived = @()
-    foreach ($s in @($ArchivedSlots)) { $archived += @{ name = [string]$s.name; command = [string]$s.command; archivedAt = [string]$s.archivedAt } }
-
-    $namesOf = { @($rows | ForEach-Object { $_.name }) + @($archived | ForEach-Object { $_.name }) }
-
-    $cursor = 0
-    $rendered = 0
-    $msg = ''
-
-    $title = "Agent terminals — $Context/$Project · $Branch"
-    $width = 72
-    $bar   = '─' * $width
-
-    [Console]::Out.Write($T.HideCur)
-    try {
-        while ($true) {
-            if ($rows.Count -eq 0) { $cursor = 0 } else { $cursor = [Math]::Max(0, [Math]::Min($cursor, $rows.Count - 1)) }
-            _wtf_render_clear $rendered
-            $lines = 0
-            [Console]::Out.WriteLine("$($T.Header)$($T.Bold)  $title$($T.Reset)"); $lines++
-            [Console]::Out.WriteLine("$($T.Faint)  $bar$($T.Reset)"); $lines++
-
-            if ($rows.Count -eq 0) {
-                [Console]::Out.WriteLine("$($T.Detail)    (no terminals — press $($T.Bold)a$($T.Reset)$($T.Detail) to add one)$($T.Reset)"); $lines++
-            }
-            for ($i = 0; $i -lt $rows.Count; $i++) {
-                $r      = $rows[$i]
-                $title2 = Get-WtfSlotTitle $r
-                $cmdTxt = if ([string]::IsNullOrWhiteSpace($r.command)) { "$($T.Warn)no command (opens empty)$($T.Reset)" } else { "$($T.Detail)$(_wtf_truncate $r.command 40)$($T.Reset)" }
-                $active = ($i -eq $cursor)
-                if ($active) {
-                    $rail = "$($T.Rail)▌$($T.Reset)"
-                    [Console]::Out.WriteLine("$rail $($T.SelBg)$($T.Bold)$($title2.PadRight(16))$($T.Reset)$($T.SelBg) $cmdTxt$($T.Reset)")
-                } else {
-                    [Console]::Out.WriteLine("  $($title2.PadRight(16)) $cmdTxt")
-                }
-                $lines++
-            }
-
-            [Console]::Out.WriteLine("$($T.Faint)  $bar$($T.Reset)"); $lines++
-            $archNote = if ($archived.Count -gt 0) { "   $($T.Faint)·  r restore ($($archived.Count) archived)$($T.Reset)" } else { '' }
-            [Console]::Out.WriteLine("$($T.Detail)  ↑↓ move · enter edit · a add · x archive/remove$archNote$($T.Reset)"); $lines++
-            [Console]::Out.WriteLine("$($T.Detail)  s save · esc cancel$($T.Reset)"); $lines++
-            if ($msg) { [Console]::Out.WriteLine("$($T.Accent)  $msg$($T.Reset)"); $lines++; $msg = '' }
-            $rendered = $lines
-
-            $key = [Console]::ReadKey($true)
-            switch ($key.Key) {
-                'UpArrow'   { if ($rows.Count) { $cursor = ($cursor - 1 + $rows.Count) % $rows.Count } }
-                'DownArrow' { if ($rows.Count) { $cursor = ($cursor + 1) % $rows.Count } }
-                'Home'      { $cursor = 0 }
-                'End'       { if ($rows.Count) { $cursor = $rows.Count - 1 } }
-                'Enter' {
-                    if ($rows.Count -eq 0) { continue }
-                    $res = _wtf_board_edit_row $rows[$cursor]
-                    if ($res) { $rows[$cursor] = $res }
-                }
-                'Escape' {
-                    _wtf_render_clear $rendered
-                    _wtf_write "  $($T.Fail)cancelled — no changes saved$($T.Reset)"
-                    return $null
-                }
-                default {
-                    switch ("$($key.KeyChar)".ToLower()) {
-                        'a' {
-                            # Auto-name from the first free Greek name, then open the
-                            # inline form so you can rename / paste a command in one go.
-                            $auto = New-WtfNextTermName -ExistingNames (& $namesOf)
-                            $new = _wtf_board_edit_row @{ name=$auto; command='' }
-                            if ($new) {
-                                $insert = if ($rows.Count) { $cursor + 1 } else { 0 }
-                                $before = if ($insert -gt 0)            { @($rows[0..($insert-1)]) } else { @() }
-                                $after  = if ($insert -le $rows.Count-1) { @($rows[$insert..($rows.Count-1)]) } else { @() }
-                                $rows = @($before) + @($new) + @($after)
-                                $cursor = $insert
-                            }
-                        }
-                        'x' {
-                            if ($rows.Count -eq 0) { continue }
-                            $r = $rows[$cursor]
-                            if (-not [string]::IsNullOrWhiteSpace($r.command)) {
-                                $archived = @($archived) + @{ name=$r.name; command=$r.command; archivedAt=(_wtf_now_iso) }
-                                $msg = "archived $(Get-WtfSlotTitle $r) — reopen later via ``wtf sessions``"
-                            } else {
-                                $msg = "removed $(Get-WtfSlotTitle $r) (no session to archive)"
-                            }
-                            $rows = @($rows | Where-Object { $_ -ne $r })
-                        }
-                        'r' {
-                            if ($archived.Count -eq 0) { $msg = "nothing archived"; continue }
-                            [Console]::Out.Write($T.ShowCur)
-                            $labels = @($archived | ForEach-Object { "$(Get-WtfSlotTitle $_)   $($T.Detail)$(_wtf_truncate $_.command 40)$($T.Reset)" })
-                            $pick = Read-WtfChoice -Prompt "Restore which archived session" -Options $labels
-                            [Console]::Out.Write($T.HideCur)
-                            if ($pick) {
-                                $ri = [Array]::IndexOf($labels, $pick)
-                                $rs = $archived[$ri]
-                                $rows = @($rows) + @{ name=$rs.name; command=$rs.command }
-                                $archived = @($archived | Where-Object { $_ -ne $rs })
-                                $cursor = $rows.Count - 1
-                                $msg = "restored $(Get-WtfSlotTitle $rs)"
-                            }
-                        }
-                        's' {
-                            # Save: keep every row that has a name. A blank name is
-                            # backfilled from the Greek pool so nothing is nameless.
-                            $seen = @()
-                            $final = @($rows | ForEach-Object {
-                                $nm = $_.name
-                                if ([string]::IsNullOrWhiteSpace($nm)) { $nm = New-WtfNextTermName -ExistingNames $seen }
-                                $seen += $nm
-                                New-WtfSlot -Name $nm -Command $_.command
-                            })
-                            _wtf_render_clear $rendered
-                            return @{ Active = @($final); Archived = @($archived) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    finally {
-        [Console]::Out.Write($T.ShowCur)
-    }
-}
-
-function _wtf_board_edit_row {
-    <#
-    .SYNOPSIS
-        Inline overlay used by the board to create/edit ONE terminal: name +
-        command together, in a single pass (no role step). Returns the row
-        hashtable, or $null if cancelled (and nothing should change).
-    #>
-    param($Row)
-    $res = Read-WtfInlineForm -Name $Row.name -Command $Row.command
-    if ($null -eq $res) { return $null }
-    # A name is required; if you blank it out, keep the previous one (or it'll be
-    # backfilled on save). Command may be blank (opens an empty tab).
-    $name = if ([string]::IsNullOrWhiteSpace($res.Name)) { $Row.name } else { $res.Name }
-    return @{ name = $name; command = $res.Command }
-}
-
-function Invoke-WtfSlotWalkthrough {
-    # Thin wrapper kept for callers — delegates to the live board.
-    param(
-        [Parameter(Mandatory)][string]$Context,
-        [Parameter(Mandatory)][string]$Project,
-        [Parameter(Mandatory)][string]$Branch,
-        [Parameter(Mandatory)]$ExistingSlots,
-        $ArchivedSlots = @()
-    )
-    return Invoke-WtfSlotBoard -Context $Context -Project $Project -Branch $Branch `
-        -ExistingSlots $ExistingSlots -ArchivedSlots $ArchivedSlots
-}
-
-# ============================================================================
-# COMMAND: wtf edit  (configure a feature's agentic terminals)
-# ============================================================================
-
-function Invoke-WtfEdit {
-    param(
-        [string]$Context,
-        [string]$Project,
-        [string]$Branch
-    )
-    Start-WtfLog 'edit'
-    Write-WtfBanner "edit — set up this feature's agent terminals"
-
-    $config = Get-WtfConfig
-    if (-not $config) { return }
-
-    # Always make the feature explicit (so you know which one you're editing).
-    if (-not $Context -or -not $Project -or -not $Branch) {
-        $features = Get-WtfActiveFeatures -Config $config
-        if ($Context) { $features = @($features | Where-Object { $_.Context -eq $Context }) }
-        if ($features.Count -eq 0) { Write-WtfFail "No active features to edit."; return }
-        $labels = $features | ForEach-Object {
-            "$($_.Context)/$($_.Project) · $($_.Branch)  $($script:T.Detail)($($_.Apps -join ', '))$($script:T.Reset)"
-        }
-        $pick = Read-WtfChoice -Prompt "Edit terminals for which feature" -Options $labels
-        if (-not $pick) { return }
-        $f = $features[[Array]::IndexOf($labels, $pick)]
-        $Context = $f.Context; $Project = $f.Project; $Branch = $f.Branch
-    }
-
-    $featureDir = Get-WtfFeatureDir $config $Context $Project $Branch
-    $meta = Read-WtfMeta -FeatureDir $featureDir
-    if (-not $meta) { Write-WtfFail "Feature not found: $featureDir"; return }
-
-    $existing   = @(Get-WtfSlots $meta)
-    $archived   = @(Get-WtfArchivedSlots $meta)
-    $res = Invoke-WtfSlotWalkthrough -Context $Context -Project $Project -Branch $Branch `
-              -ExistingSlots $existing -ArchivedSlots $archived
-    if ($null -eq $res) { Write-WtfWarn "No changes saved."; return }
-    $newSlots    = @($res.Active)
-    $newArchived = @($res.Archived)
-
-    Set-WtfMetaSlots -Meta $meta -Active $newSlots -Archived $newArchived | Out-Null
-    Save-WtfMeta -FeatureDir $featureDir -Meta $meta
-
-    # Make sure the plan docs exist (a feature created before this version, or one
-    # whose .plan/ was deleted, gets them now). Never clobbers existing content.
-    $type = if ($meta.type) { $meta.type } elseif (@($meta.apps).Count -eq 0) { 'mono' } else { 'multi' }
-    $planDir = Join-Path $featureDir '.plan'
-    if (-not (Test-Path $planDir)) { New-Item -ItemType Directory -Path $planDir -Force | Out-Null }
-    Write-WtfPlanDocs -PlanDir $planDir -Branch $Branch -Apps @($meta.apps) -Project $Project
-    # Mono: make sure the in-repo .plan/ stays git-excluded.
-    if ($type -eq 'mono') { Add-WtfGitExclude -WorktreeDir $featureDir -Patterns @('/.plan/') }
-
-    # Save and STOP — `wtf edit` never opens. Use `wtf open` to launch.
-    Write-WtfHeader "Saved"
-    if ($newSlots.Count -gt 0) {
-        Write-WtfDetail "``wtf open`` (this feature) will launch:"
-        Show-WtfSlotPreview $newSlots
-    } else {
-        Write-WtfDetail "No active agent terminals — nothing will launch on ``wtf open``."
-    }
-    if ($newArchived.Count -gt 0) {
-        Write-WtfDetail "Archived: $(@($newArchived | ForEach-Object { Get-WtfSlotTitle $_ }) -join ', ')  ·  reopen via ``wtf sessions``"
-    }
-}
-
-# ============================================================================
-# COMMAND: wtf sessions  (list active + archived; reopen one)
-# ============================================================================
 
 function Resolve-WtfFeatureSelection {
     <#
@@ -3281,83 +2526,6 @@ function Resolve-WtfFeatureSelection {
     $meta = Read-WtfMeta -FeatureDir $dir
     if (-not $meta) { Write-WtfFail "Feature not found: $dir"; return $null }
     return @{ Context = $Context; Project = $Project; Branch = $Branch; Dir = $dir; Meta = $meta }
-}
-
-function Invoke-WtfLaunchOneSlot {
-    <#
-    .SYNOPSIS
-        Open ONE slot as a new tab inside the feature's EXISTING agents window
-        (wt -w <name> reuses a window if it's already open, else creates it).
-    #>
-    param(
-        [Parameter(Mandatory)][string]$WindowName,
-        [Parameter(Mandatory)]$Slot,
-        [Parameter(Mandatory)][string]$FeatureDir
-    )
-    $title = Get-WtfSlotTitle $Slot
-    $color = Get-WtfTermColor $Slot.name
-    $argv  = @('-w', $WindowName, 'new-tab','-d', $FeatureDir, '--title', $title, '--tabColor', $color)
-    $run   = _wtf_slot_launch_cmd $Slot -WorkingDir $FeatureDir
-    if ($run) { $argv += $run }
-    Invoke-WtfWt -Argv $argv
-}
-
-function Invoke-WtfSessions {
-    param(
-        [string]$Context,
-        [string]$Project,
-        [string]$Branch
-    )
-    Start-WtfLog 'sessions'
-    Write-WtfBanner "sessions — agent sessions for a feature"
-
-    $config = Get-WtfConfig
-    if (-not $config) { return }
-
-    $sel = Resolve-WtfFeatureSelection -Config $config -Context $Context -Project $Project -Branch $Branch -Prompt "Sessions for which feature"
-    if (-not $sel) { return }
-    $meta = $sel.Meta
-
-    $active   = @(Get-WtfSlots $meta)
-    $archived = @(Get-WtfArchivedSlots $meta)
-
-    Write-WtfHeader "$($sel.Context) / $($sel.Project) — $($sel.Branch)"
-    $T = $script:T
-    if ($active.Count -gt 0) {
-        Write-WtfInfo "Active:"
-        foreach ($s in $active) { _wtf_write "    $($T.Ok)●$($T.Reset) $(Get-WtfSlotTitle $s)   $($T.Detail)$([string]$s.command)$($T.Reset)" }
-    }
-    if ($archived.Count -gt 0) {
-        Write-WtfInfo "Archived:"
-        foreach ($s in $archived) {
-            $when = if ($s.archivedAt) { " $($T.Faint)($([string]$s.archivedAt).Substring(0,10))$($T.Reset)" } else { '' }
-            _wtf_write "    $($T.Faint)○$($T.Reset) $(Get-WtfSlotTitle $s)$when   $($T.Detail)$([string]$s.command)$($T.Reset)"
-        }
-    }
-    if ($active.Count -eq 0 -and $archived.Count -eq 0) {
-        Write-WtfDetail "No sessions yet. Run ``wtf edit`` to set up agent terminals."
-        return
-    }
-
-    # Build a reopen picker over BOTH sets.
-    $pickItems = @()
-    foreach ($s in $active)   { $pickItems += @{ Slot = $s; Tag = 'active' } }
-    foreach ($s in $archived) { $pickItems += @{ Slot = $s; Tag = 'archived' } }
-    $labels = @($pickItems | ForEach-Object {
-        $tag = if ($_.Tag -eq 'archived') { " $($T.Faint)[archived]$($T.Reset)" } else { '' }
-        "$(Get-WtfSlotTitle $_.Slot)$tag"
-    })
-    $NONE = '— don''t reopen anything —'
-    [Console]::Out.WriteLine()
-    $pick = Read-WtfChoice -Prompt "Reopen a session (in the agents window)" -Options (@($NONE) + $labels)
-    if (-not $pick -or $pick -eq $NONE) { return }
-    $chosen = $pickItems[([Array]::IndexOf($labels, $pick))]
-
-    $safeBranch = ConvertTo-WtfSafeName $sel.Branch
-    $agentWin   = "wtf-agents-$($sel.Project)-$safeBranch"
-    Write-WtfStep "reopening $(Get-WtfSlotTitle $chosen.Slot) → $agentWin"
-    Invoke-WtfLaunchOneSlot -WindowName $agentWin -Slot $chosen.Slot -FeatureDir $sel.Dir
-    Write-WtfOk "reopened in the agents window"
 }
 
 # ============================================================================
@@ -3415,19 +2583,6 @@ function Invoke-WtfStatus {
         _wtf_write "    · $($T.Bold)$($w.Name)$($T.Reset)  $($tags -join ' ')"
     }
 
-    # ── Agent sessions ────────────────────────────────────────────────
-    $active   = @(Get-WtfSlots $meta)
-    $archived = @(Get-WtfArchivedSlots $meta)
-    Write-WtfInfo "Agent sessions:"
-    if ($active.Count -gt 0) {
-        _wtf_write "    active:   $(@($active | ForEach-Object { Get-WtfSlotTitle $_ }) -join '   ')"
-    } else {
-        Write-WtfDetail "  active:   none — run ``wtf edit``"
-    }
-    if ($archived.Count -gt 0) {
-        _wtf_write "    archived: $(@($archived | ForEach-Object { Get-WtfSlotTitle $_ }) -join '   ')"
-    }
-
     # ── Plan progress (checkbox counts in PLAN.md) ────────────────────
     $planDir = Join-Path $sel.Dir '.plan'
     if (Test-Path $planDir) {
@@ -3438,141 +2593,10 @@ function Invoke-WtfStatus {
             $bar = if ($p.Total -gt 0) { "$($p.Done)/$($p.Total) steps in 'Now building'" } else { "$($T.Faint)no open steps$($T.Reset)" }
             _wtf_write "    · $($T.Bold)PLAN.md$($T.Reset)  $bar"
         } else {
-            Write-WtfDetail "  PLAN.md missing — run ``wtf edit`` to scaffold it"
+            Write-WtfDetail "  PLAN.md missing"
         }
         $logMd = Join-Path $planDir 'LOG.md'
         if (Test-Path $logMd) { _wtf_write "    · $($T.Bold)LOG.md$($T.Reset)  $($T.Faint)present$($T.Reset)" }
-    }
-}
-
-# ============================================================================
-# COMMAND: wtf open
-# ============================================================================
-
-function Invoke-WtfOpen {
-    param(
-        [string]$Context,
-        [string]$Project,
-        [string]$Branch,
-        [switch]$Panes
-    )
-    if (-not $script:WtfLogFile) { Start-WtfLog 'open' }
-
-    $config = Get-WtfConfig
-    if (-not $config) { return }
-
-    if (-not $Context -or -not $Project -or -not $Branch) {
-        $features = Get-WtfActiveFeatures -Config $config
-        if ($features.Count -eq 0) {
-            Write-WtfFail "No active features anywhere."
-            return
-        }
-        $labels = $features | ForEach-Object {
-            "$($_.Context)/$($_.Project) · $($_.Branch)  $($script:T.Detail)($($_.Apps -join ', '))$($script:T.Reset)"
-        }
-        $pick = Read-WtfChoice -Prompt "Open which feature" -Options $labels
-        if (-not $pick) { return }
-        $idx = [Array]::IndexOf($labels, $pick)
-        $f = $features[$idx]
-        $Context = $f.Context; $Project = $f.Project; $Branch = $f.Branch
-    }
-
-    $featureDir = Get-WtfFeatureDir $config $Context $Project $Branch
-    $meta = Read-WtfMeta -FeatureDir $featureDir
-    if (-not $meta) { Write-WtfFail "Feature not found: $featureDir"; return }
-
-    if (-not $PSBoundParameters.ContainsKey('Panes')) {
-        $Panes = [switch]([bool]$meta.panes)
-    }
-
-    $layout = Resolve-WtfFeatureLayout -Config $config -Meta $meta -FeatureDir $featureDir
-    $wt     = @($layout.Worktrees)
-    $deps   = @($layout.Deps)
-    $isMono = ($layout.Type -eq 'mono')
-
-    Write-WtfHeader "Opening $Branch"
-
-    # ── Editor ────────────────────────────────────────────────────────
-    # Mono: open the single repo worktree DIRECTLY — no .code-workspace, so VS
-    # Code shows the repo at the root (no nested folder-in-folder). The repo's own
-    # .plan/ folder rides along, so the agent sees plan + code together.
-    # Multi: a workspace genuinely helps (it spans every worktree + deps), so we
-    # (re)write and open it as before.
-    if ($isMono) {
-        $repoDir = if ($wt.Count -gt 0) { $wt[0].Dir } else { $featureDir }
-        # Hide the phantom source main-checkout in SCM, and stop VS Code from
-        # climbing UP to discover a parent repo. Mono has no .code-workspace, so
-        # this lives in the worktree's own .vscode. MUST run BEFORE launching so VS
-        # Code reads it on window load.
-        $monoIgnore = foreach ($w in $wt) { Join-Path $layout.MainDir $w.RelPath }
-        Set-WtfVscodeRepoSettings -TargetDir $repoDir -IgnoreRepos @($monoIgnore) -NoParentFolderRepos
-        # Reciprocal: when YOU open the source main checkout directly (to make a
-        # quick fix / check a peer's branch), make IT show only main by hiding the
-        # sibling worktrees there too.
-        foreach ($w in $wt) {
-            $srcRepo = Join-Path $layout.MainDir $w.RelPath
-            if (Test-Path $srcRepo) { Set-WtfVscodeRepoSettings -TargetDir $srcRepo -IgnoreRepos @($w.Dir) -NoParentFolderRepos }
-        }
-        Write-WtfStep "VS Code (repo folder)"
-        # -n forces a NEW window. Without it, `code` reuses the last-active window —
-        # so if you had main\<repo> open, the worktree would muddle into that window
-        # and VS Code would show BOTH git repos (the bug you hit). A dedicated window
-        # for the worktree also guarantees its .vscode/settings.json is the one read.
-        Start-Process -FilePath 'code' -ArgumentList @('-n','--', $repoDir) -ErrorAction SilentlyContinue
-        Write-WtfOk "code launched (new window) → $(Split-Path $repoDir -Leaf)"
-    } else {
-        $wsPath = Get-WtfWorkspacePath $config $Context $Project $Branch
-        # Re-establish any missing dep junctions (e.g. created before junctions
-        # existed, or lost). Idempotent: present junctions are left alone.
-        foreach ($d in $deps) {
-            if (-not (Test-Path -LiteralPath $d.Dir) -and $d.Source) {
-                New-WtfDepJunction -FeatureDir $featureDir -Name $d.Name -Target $d.Source | Out-Null
-            }
-        }
-        # Refresh the workspace so existing features pick up the latest folder
-        # markers + phantom-repo hiding on every open.
-        $wtNorm = foreach ($w in $wt)   { @{ Name = $w.Name; Dir = $w.Dir } }
-        $dpNorm = foreach ($d in $deps) { @{ Name = $d.Name; Dir = $d.Dir } }
-        # Phantoms to hide: each worktree's SOURCE main-checkout, and each dep's
-        # underlying repo (resolved through its junction). NEVER a worktree's own
-        # path — that would hide the repo we actually want.
-        $ignoreRepos = @()
-        foreach ($w in $wt)   { $ignoreRepos += Join-Path $layout.MainDir $w.RelPath }
-        foreach ($d in $deps) { if ($d.Source) { $ignoreRepos += $d.Source } else { $ignoreRepos += $d.Dir } }
-        Write-WtfWorkspace -WorkspacePath $wsPath -FeatureDir $featureDir -Worktrees @($wtNorm) -Deps @($dpNorm) -IgnoreRepos @($ignoreRepos)
-        # Reciprocal: configure each worktree's source main checkout so opening it
-        # directly shows only main (hide the sibling worktree there).
-        foreach ($w in $wt) {
-            $srcRepo = Join-Path $layout.MainDir $w.RelPath
-            if (Test-Path $srcRepo) { Set-WtfVscodeRepoSettings -TargetDir $srcRepo -IgnoreRepos @($w.Dir) -NoParentFolderRepos }
-        }
-        Write-WtfStep "VS Code workspace"
-        Start-Process -FilePath 'code' -ArgumentList @('--', $wsPath) -ErrorAction SilentlyContinue
-        Write-WtfOk "code launched"
-    }
-
-    $safeBranch = ConvertTo-WtfSafeName $Branch
-    $agentWin   = "wtf-agents-$Project-$safeBranch"
-    $runnerWin  = "wtf-runners-$Project-$safeBranch"
-
-    # ── Agentic terminals from this feature's slots ───────────────────
-    # `open` is DUMB on purpose: it spawns exactly the saved slots (each a real
-    # session) and never prompts. A fresh feature has NO slots yet — we don't
-    # open empty tabs; we just point you at `wtf edit` to set them up.
-    $slots = @(Get-WtfSlots $meta)
-    if (@($slots).Count -gt 0) {
-        Write-WtfStep "agent window"
-        Show-WtfSlotPreview $slots
-        Invoke-WtfLaunchAgents -WindowName $agentWin -Slots $slots -FeatureDir $featureDir
-        Write-WtfOk "agents → $agentWin"
-    } else {
-        Write-WtfDetail "No agent sessions saved yet — start your sessions, then run ``wtf edit`` to save them so the next ``wtf open`` resumes as-is."
-    }
-
-    if ($wt.Count -gt 0 -or $deps.Count -gt 0) {
-        Write-WtfStep "runner window"
-        Invoke-WtfLaunchRunners -WindowName $runnerWin -Worktrees $wt -Deps $deps
-        Write-WtfOk "runners → $runnerWin"
     }
 }
 
@@ -3670,8 +2694,8 @@ function Invoke-WtfDelete {
 
     # ── Teardown ──────────────────────────────────────────────────────
     Write-WtfHeader "Teardown"
-    Write-WtfDetail "If removal stalls, close this feature's VS Code window and agent/runner"
-    Write-WtfDetail "terminals first — open handles lock the files (Windows ‘Permission denied’)."
+    Write-WtfDetail "If removal stalls, close any pane sitting inside this feature -"
+    Write-WtfDetail "an open handle locks the files and Windows refuses the delete."
     $stuck = @()
     foreach ($w in $worktrees) {
         $app    = $w.Name
@@ -3686,7 +2710,7 @@ function Invoke-WtfDelete {
                 # may have already unlinked it, so finish by deleting the folder, then
                 # prune the dangling registration.
                 if ($r.Stderr -match 'Permission denied|being used|access') {
-                    Write-WtfWarn "  files locked — close VS Code/terminals on this feature"
+                    Write-WtfWarn "  files locked - close any pane sitting in this feature"
                 } else {
                     Write-WtfWarn "  git worktree remove failed: $($r.Stderr)"
                 }
@@ -3739,13 +2763,14 @@ function Invoke-WtfDelete {
     if (Test-Path $metaPath) { Remove-Item $metaPath -Force -ErrorAction SilentlyContinue }
     $legacyMeta = Join-Path $featureDir '.wtf-meta.json'
     if (Test-Path $legacyMeta) { Remove-Item $legacyMeta -Force -ErrorAction SilentlyContinue }
-    $wsPath = Get-WtfWorkspacePath $config $Context $Project $Branch
-    if (Test-Path $wsPath) { Remove-Item $wsPath -Force }
+    # Clean up any .code-workspace left behind by the old VS Code flow.
+    $legacyWs = Join-Path (Split-Path $featureDir -Parent) ((Split-Path $featureDir -Leaf) + '.code-workspace')
+    if (Test-Path $legacyWs) { Remove-Item $legacyWs -Force -ErrorAction SilentlyContinue }
 
     if ($stuck.Count -gt 0) {
         Write-WtfSummary -Title "Partially removed: $Branch" -Color $script:T.Warn -Lines @(
             "$($script:T.Warn)Locked (still on disk):$($script:T.Reset) $($stuck -join ', ')",
-            "$($script:T.Detail)Close the feature's VS Code + terminal windows, then run ``wtf delete`` again$($script:T.Reset)",
+            "$($script:T.Detail)Close any terminal pane sitting in those folders, then run ``wtf delete`` again$($script:T.Reset)",
             "$($script:T.Detail)(or ``wtf doctor -Fix`` to clean leftovers).$($script:T.Reset)"
         )
         return
@@ -3874,22 +2899,6 @@ function Invoke-WtfList {
             if ($behind.Ok -and [int]$behind.Stdout -gt 0) { $tags += "$($script:T.Warn)↓$($behind.Stdout)$($script:T.Reset)" }
             if ($tags.Count -eq 0) { $tags = @("$($script:T.Ok)clean$($script:T.Reset)") }
             _wtf_write "  · $($script:T.Bold)$a$($script:T.Reset)  $($tags -join ' ')"
-        }
-
-        # Agentic terminals (slots): show each with a ✓ if it has a saved resume
-        # command, or an amber "no cmd" if it's open-only / not set up yet.
-        $fMeta  = Read-WtfMeta -FeatureDir $f.Dir
-        $fSlots = @(Get-WtfSlots $fMeta)
-        if ($fSlots.Count -gt 0) {
-            $cells = foreach ($s in $fSlots) {
-                $t = Get-WtfSlotTitle $s
-                if ([string]::IsNullOrWhiteSpace([string]$s.command)) {
-                    "$t $($script:T.Warn)·no cmd$($script:T.Reset)"
-                } else {
-                    "$t $($script:T.Ok)✓$($script:T.Reset)"
-                }
-            }
-            _wtf_write "  $($script:T.Faint)agents:$($script:T.Reset) $($cells -join "   ")"
         }
 
         Write-WtfDetail "$($f.Dir)"
@@ -4037,8 +3046,12 @@ function Invoke-WtfConfigOpen {
         Write-WtfFail "No config file yet — use the menu to create one."
         return
     }
-    Start-Process -FilePath 'code' -ArgumentList @('--', $script:WtfConfig) -ErrorAction SilentlyContinue
-    Write-WtfOk "opened $script:WtfConfig in VS Code"
+    $editor = $env:EDITOR
+    if (-not $editor) {
+        if (Get-Command code -ErrorAction SilentlyContinue) { $editor = 'code' } else { $editor = 'notepad' }
+    }
+    Start-Process -FilePath $editor -ArgumentList @($script:WtfConfig) -ErrorAction SilentlyContinue
+    Write-WtfOk "opened $script:WtfConfig in $editor"
 }
 
 # ── Sub-flow: add a context (root folder) ─────────────────────────────────
@@ -4288,29 +3301,56 @@ function Invoke-WtfConfig {
 # DISPATCHER — `wtf <subcommand> ...args`
 # ============================================================================
 
+function Show-WtfHelp {
+    Write-WtfBanner "WorkTree Flow"
+    Write-WtfInfo "Worktrees"
+    Write-WtfDetail "  wtf create  [ctx proj branch apps...] [--dry-run]   make worktrees, then print the paths"
+    Write-WtfDetail "  wtf add     [ctx proj branch apps...] [--dry-run]   add repos/deps to a feature"
+    Write-WtfDetail "  wtf remove  [ctx proj branch apps...] [--force]     drop repos/deps from a feature"
+    Write-WtfDetail "  wtf delete  [ctx proj branch] [--force] [--dry-run] tear a whole feature down"
+    Write-WtfDetail "  wtf list                                            every active feature"
+    Write-WtfDetail "  wtf status  [ctx proj branch]                       git state + plan progress"
+    Write-WtfDetail "  wtf doctor  [--fix]                                 find and repair leftovers"
+    Write-WtfDetail "  wtf config                                          set up roots and repo groups"
+    Write-WtfDetail ""
+    Write-WtfInfo "Tab layouts"
+    Write-WtfDetail "  wtf snap    [name]                                  save THIS tab's panes as a layout"
+    Write-WtfDetail "  wtf tab ls                                          list saved layouts"
+    Write-WtfDetail "  wtf tab open [name]                                 rebuild a layout in a new tab"
+    Write-WtfDetail "  wtf tab edit [name]                                 edit a layout's commands"
+    Write-WtfDetail "  wtf tab rm  [name]                                  delete a layout"
+    Write-WtfDetail "  wtf hotkey install                                  ALT+SHIFT+S snap, ALT+SHIFT+O open"
+    Write-WtfDetail "  wtf hotkey status | remove [snap|open]              inspect or drop the hotkeys"
+    Write-WtfDetail ""
+    Write-WtfDetail "Leave a name out and you get a list to pick from."
+    Write-WtfDetail "wtf create only prints paths - you arrange your own panes, then wtf snap saves them."
+}
+
 function wtf {
     [CmdletBinding()]
     param(
         [Parameter(ValueFromRemainingArguments=$true)][string[]]$Words
     )
 
-    # Flags may appear in ANY position (e.g. `wtf create --panes`). Pull them out
-    # first, then treat the remaining tokens positionally: action ctx proj branch apps…
+    # Flags may appear in ANY position. Pull them out first, then read what is
+    # left positionally: action arg1 arg2 arg3 ...
     $pos    = @()
-    $panes  = $false
     $force  = $false
     $dryRun = $false
     $fix    = $false
+    $fg     = $false
+    $noMe   = $false
     foreach ($w in @($Words)) {
         switch -Regex ($w) {
-            '^--panes$'   { $panes  = $true }
-            '^--force$'   { $force  = $true }
-            '^-Force$'    { $force  = $true }
-            '^--dry-run$' { $dryRun = $true }
-            '^-DryRun$'   { $dryRun = $true }
-            '^--fix$'     { $fix    = $true }
-            '^-Fix$'      { $fix    = $true }
-            default       { $pos   += $w }
+            '^--force$'      { $force  = $true }
+            '^-Force$'       { $force  = $true }
+            '^--dry-run$'    { $dryRun = $true }
+            '^-DryRun$'      { $dryRun = $true }
+            '^--fix$'        { $fix    = $true }
+            '^-Fix$'         { $fix    = $true }
+            '^--foreground$' { $fg     = $true }
+            '^--without-me$' { $noMe   = $true }
+            default          { $pos   += $w }
         }
     }
     $Action  = $pos[0]
@@ -4319,49 +3359,46 @@ function wtf {
     $Branch  = $pos[3]
     $apps    = if ($pos.Count -gt 4) { @($pos[4..($pos.Count - 1)]) } else { @() }
 
-    if (-not $Action) {
-        Write-WtfBanner "WorkTree Flow"
-        Write-WtfInfo "Commands:"
-        Write-WtfDetail "  wtf create  [ctx proj branch apps...] [--dry-run]"
-        Write-WtfDetail "  wtf open    [ctx proj branch]          resume the feature's VS Code + agent terminals"
-        Write-WtfDetail "  wtf edit    [ctx proj branch]          set up / change this feature's agent terminals"
-        Write-WtfDetail "  wtf sessions[ctx proj branch]          list active + archived sessions; reopen one"
-        Write-WtfDetail "  wtf status  [ctx proj branch]          feature dashboard: git, sessions, plan progress"
-        Write-WtfDetail "  wtf add     [ctx proj branch apps...] [--dry-run]   add repos/deps to a feature"
-        Write-WtfDetail "  wtf remove  [ctx proj branch apps...] [--force] [--dry-run]  drop repos/deps from a feature"
-        Write-WtfDetail "  wtf delete  [ctx proj branch] [--force] [--dry-run]  tear down a whole feature"
-        Write-WtfDetail "  wtf list"
-        Write-WtfDetail "  wtf doctor  [-Fix]"
-        Write-WtfDetail "  wtf config            (interactive menu)"
-        Write-WtfDetail "  wtf config edit       (open config.json directly)"
-        Write-WtfDetail ""
-        Write-WtfDetail "All args are optional — omit any and you'll be prompted."
-        Write-WtfDetail "Each feature has agent terminals — auto-named tabs (alpha, beta, …), each its own tab."
-        Write-WtfDetail "``wtf create`` starts one (alpha); add/rename more and paste each CLI's full resume command"
-        Write-WtfDetail "(session id included) in ``wtf edit``. ``wtf open`` re-spawns them as-is. Each feature also"
-        Write-WtfDetail "gets a .plan/ folder: RULES.md · CHECK.md · PLAN.md (map) · LOG.md (work log)."
-        Write-WtfDetail "Single repos are auto-discovered; run ``wtf config`` to set up roots."
-        return
-    }
+    if (-not $Action) { Show-WtfHelp; return }
 
     switch ($Action.ToLower()) {
-        'create' { Invoke-WtfCreate -Context $Context -Project $Project -Branch $Branch -Apps $apps -Panes:$panes -DryRun:$dryRun }
+        # -- worktrees ------------------------------------------------------
+        'create' { Invoke-WtfCreate -Context $Context -Project $Project -Branch $Branch -Apps $apps -DryRun:$dryRun }
         'add'    { Invoke-WtfAdd    -Context $Context -Project $Project -Branch $Branch -Apps $apps -DryRun:$dryRun }
-        'open'   { Invoke-WtfOpen   -Context $Context -Project $Project -Branch $Branch -Panes:$panes }
-        'edit'   { Invoke-WtfEdit   -Context $Context -Project $Project -Branch $Branch }
-        'sessions' { Invoke-WtfSessions -Context $Context -Project $Project -Branch $Branch }
-        'session'  { Invoke-WtfSessions -Context $Context -Project $Project -Branch $Branch }
-        'status'   { Invoke-WtfStatus   -Context $Context -Project $Project -Branch $Branch }
         'remove' { Invoke-WtfRemove -Context $Context -Project $Project -Branch $Branch -Apps $apps -Force:$force -DryRun:$dryRun }
         'rm'     { Invoke-WtfRemove -Context $Context -Project $Project -Branch $Branch -Apps $apps -Force:$force -DryRun:$dryRun }
         'delete' { Invoke-WtfDelete -Context $Context -Project $Project -Branch $Branch -Force:$force -DryRun:$dryRun }
         'del'    { Invoke-WtfDelete -Context $Context -Project $Project -Branch $Branch -Force:$force -DryRun:$dryRun }
         'list'   { Invoke-WtfList }
         'ls'     { Invoke-WtfList }
+        'status' { Invoke-WtfStatus -Context $Context -Project $Project -Branch $Branch }
         'doctor' { Invoke-WtfDoctor -Fix:$fix }
         'config' { Invoke-WtfConfig -Sub $Context }
-        default  { Write-WtfFail "Unknown command: $Action"; wtf }
+
+        # -- tab layouts ----------------------------------------------------
+        'snap'   { Invoke-WtfSnap    -Name $Context -Foreground:$fg -WithoutMe:$noMe }
+        'tab'    { Invoke-WtfTab     -Sub  $Context -Name $Project }
+        'tabs'   { Invoke-WtfTab     -Sub  'ls' }
+        'hotkey' { Invoke-WtfHotkey  -Sub  $Context -Action $Project -Combo $Branch }
+        'open'   { Invoke-WtfTabOpen -Name $Context }
+        'edit'   { Invoke-WtfTabEdit -Name $Context }
+
+        'help'   { Show-WtfHelp }
+        default  { Write-WtfFail "Unknown command: $Action"; Show-WtfHelp }
     }
+}
+
+# ============================================================================
+# TAB LAYOUTS
+# ============================================================================
+# Capture and restore of Windows Terminal tab layouts lives in its own files so
+# the worktree engine above stays independent of it.
+
+$script:WtfHere = Split-Path -Parent $PSCommandPath
+foreach ($mod in @('wtf-layout.ps1', 'wtf-tab.ps1', 'wtf-hotkey.ps1')) {
+    $modPath = Join-Path $script:WtfHere $mod
+    if (Test-Path $modPath) { . $modPath }
+    else { Write-Warning "wtf: missing module $mod" }
 }
 
 # Done. Source this file from $PROFILE.
