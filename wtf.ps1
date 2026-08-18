@@ -883,6 +883,12 @@ function Invoke-WtfGit {
         [Parameter(Mandatory)][string]$WorkingDir,
         [Parameter(Mandatory)][string[]]$GitArgs
     )
+    # core.longpaths=true lifts git's own 260-character path limit. Without it,
+    # `git worktree remove` fails with "Filename too long" on any project with a
+    # node_modules folder, and it fails AFTER unregistering the worktree, which
+    # leaves a folder no later git command will touch. Passed per call with -c,
+    # so nothing in the user's git config is changed.
+    $GitArgs = @('-c','core.longpaths=true') + $GitArgs
     Write-WtfLog "GIT [$WorkingDir]: git $($GitArgs -join ' ')"
     if (-not (Test-Path $WorkingDir)) {
         $err = "Working dir does not exist: $WorkingDir"
@@ -1095,6 +1101,115 @@ function Test-WtfIsReparsePoint {
     if (-not (Test-Path -LiteralPath $Path)) { return $false }
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
     return [bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
+}
+
+# ----------------------------------------------------------------------------
+# LONG PATHS
+#
+# Windows had a 260-character limit on a full path. A worktree folder is already
+# long ("citedspy-feat(marketing)-feature-ribbon"), and node_modules adds another
+# 150 characters on its own, so real projects cross the line easily.
+#
+# Two different programs hit this, and each needs its own fix:
+#   git         — refuses with "Filename too long" unless core.longpaths=true
+#   PowerShell  — Remove-Item gives up unless the path starts with \\?\
+#
+# Worse, `git worktree remove` unregisters the worktree BEFORE it deletes the
+# files. When the delete fails you are left with a folder git no longer knows
+# about, so running the same command again cannot help. That is why the fix has
+# to be to stop the failure happening, not only to clean up after it.
+# ----------------------------------------------------------------------------
+
+function Get-WtfExtendedPath {
+    <#
+    .SYNOPSIS
+        Turn a path into its \\?\ form, which switches off the 260-character limit.
+    .DESCRIPTION
+        The \\?\ prefix tells Windows to pass the path to the file system as-is.
+        It only accepts a full, already-normalised path, and a UNC path needs a
+        different prefix (\\?\UNC\server\share).
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+    if ($Path.StartsWith('\\?\')) { return $Path }
+    $full = $Path
+    try { $full = [System.IO.Path]::GetFullPath($Path) } catch { }
+    if ($full.StartsWith('\\')) { return '\\?\UNC\' + $full.Substring(2) }
+    return '\\?\' + $full
+}
+
+function Remove-WtfTreeExtended {
+    <#
+    .SYNOPSIS
+        Delete one \\?\ path, walking into folders and deleting bottom-up.
+    .DESCRIPTION
+        Junctions and symlinks are unlinked, never walked into. Walking into one
+        would delete the real folder it points at — for us, a dependency's main
+        checkout.
+    #>
+    param([Parameter(Mandatory)][string]$ExtPath)
+
+    $attr = [System.IO.FileAttributes]0
+    try { $attr = [System.IO.File]::GetAttributes($ExtPath) }
+    catch { return }   # already gone
+
+    if ($attr -band [System.IO.FileAttributes]::ReparsePoint) {
+        try { [System.IO.Directory]::Delete($ExtPath, $false) }
+        catch { try { [System.IO.File]::Delete($ExtPath) } catch { } }
+        return
+    }
+
+    if ($attr -band [System.IO.FileAttributes]::Directory) {
+        $children = @()
+        try { $children = [System.IO.Directory]::GetFileSystemEntries($ExtPath) } catch { }
+        foreach ($child in $children) { Remove-WtfTreeExtended -ExtPath $child }
+        if ($attr -band [System.IO.FileAttributes]::ReadOnly) {
+            try { [System.IO.File]::SetAttributes($ExtPath, [System.IO.FileAttributes]::Directory) } catch { }
+        }
+        try { [System.IO.Directory]::Delete($ExtPath, $false) } catch { }
+        return
+    }
+
+    # A read-only file refuses to be deleted, so clear the flag first.
+    if ($attr -band [System.IO.FileAttributes]::ReadOnly) {
+        try { [System.IO.File]::SetAttributes($ExtPath, [System.IO.FileAttributes]::Normal) } catch { }
+    }
+    try { [System.IO.File]::Delete($ExtPath) } catch { }
+}
+
+function Remove-WtfPath {
+    <#
+    .SYNOPSIS
+        Delete a file or folder, including one whose contents sit deeper than the
+        old 260-character path limit.
+    .DESCRIPTION
+        Tries Remove-Item first, because it is fast and handles the ordinary case.
+        If anything survives, walks the tree again through \\?\ paths, which the
+        limit does not apply to.
+
+        Junctions are unlinked, never followed, in both passes.
+    .OUTPUTS
+        $true if nothing is left at that path.
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) { return $true }
+
+    # A junction on its own: unlink it and stop. Never recurse into the target.
+    if (Test-WtfIsReparsePoint $Path) {
+        try { [System.IO.Directory]::Delete($Path, $false) } catch { }
+        return (-not (Test-Path -LiteralPath $Path))
+    }
+
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $Path)) { return $true }
+
+    Write-WtfLog "REMOVE fallback to \\?\ long-path delete: $Path"
+    try { Remove-WtfTreeExtended -ExtPath (Get-WtfExtendedPath $Path) }
+    catch { Write-WtfLog "REMOVE long-path delete threw: $_" }
+
+    $gone = -not (Test-Path -LiteralPath $Path)
+    if (-not $gone) { Write-WtfLog "REMOVE still present after long-path delete: $Path" }
+    return $gone
 }
 
 function New-WtfDepJunction {
@@ -2014,12 +2129,12 @@ function Invoke-WtfRollback {
         $r = Invoke-WtfGit -WorkingDir $c.Src -GitArgs @('worktree','remove','--force', $c.Dst)
         if (-not $r.Ok) {
             Write-WtfWarn "git worktree remove failed for $($c.App); removing folder directly"
-            Remove-Item $c.Dst -Recurse -Force -ErrorAction SilentlyContinue
+            [void](Remove-WtfPath -Path $c.Dst)
         }
         Invoke-WtfWorktreePrune -RepoDir $c.Src
     }
     if (Test-Path $FeatureDir) {
-        Remove-Item $FeatureDir -Recurse -Force -ErrorAction SilentlyContinue
+        [void](Remove-WtfPath -Path $FeatureDir)
     }
     Write-WtfOk "rolled back cleanly"
 }
@@ -2217,7 +2332,7 @@ function Invoke-WtfAddRollback {
         Write-WtfStep "removing $($c.App)"
         $r = Invoke-WtfGit -WorkingDir $c.Src -GitArgs @('worktree','remove','--force', $c.Dst)
         if (-not $r.Ok) {
-            Remove-Item $c.Dst -Recurse -Force -ErrorAction SilentlyContinue
+            [void](Remove-WtfPath -Path $c.Dst)
         }
         Invoke-WtfWorktreePrune -RepoDir $c.Src
     }
@@ -2382,12 +2497,12 @@ function Invoke-WtfRemove {
                     } else {
                         Write-WtfWarn "  git worktree remove failed: $($r.Stderr)"
                     }
-                    if (Test-Path $w.Dir) { Remove-Item $w.Dir -Recurse -Force -ErrorAction SilentlyContinue }
+                    if (Test-Path $w.Dir) { [void](Remove-WtfPath -Path $w.Dir) }
                 }
                 Invoke-WtfWorktreePrune -RepoDir $w.Src
             } else {
                 Write-WtfWarn "  source repo missing; cleaning files only"
-                if (Test-Path $w.Dir) { Remove-Item $w.Dir -Recurse -Force -ErrorAction SilentlyContinue }
+                if (Test-Path $w.Dir) { [void](Remove-WtfPath -Path $w.Dir) }
             }
             if (Test-Path $w.Dir) {
                 $stuck += $w.Name
@@ -2711,15 +2826,17 @@ function Invoke-WtfDelete {
                 # prune the dangling registration.
                 if ($r.Stderr -match 'Permission denied|being used|access') {
                     Write-WtfWarn "  files locked - close any pane sitting in this feature"
+                } elseif ($r.Stderr -match 'too long') {
+                    Write-WtfWarn "  git hit the 260-character path limit; deleting the folder here instead"
                 } else {
                     Write-WtfWarn "  git worktree remove failed: $($r.Stderr)"
                 }
-                if (Test-Path $wtDir) { Remove-Item $wtDir -Recurse -Force -ErrorAction SilentlyContinue }
+                if (Test-Path $wtDir) { [void](Remove-WtfPath -Path $wtDir) }
             }
             Invoke-WtfWorktreePrune -RepoDir $appSrc
         } else {
             Write-WtfWarn "  source repo missing; cleaning files only"
-            if (Test-Path $wtDir) { Remove-Item $wtDir -Recurse -Force -ErrorAction SilentlyContinue }
+            if (Test-Path $wtDir) { [void](Remove-WtfPath -Path $wtDir) }
         }
 
         if (Test-Path $wtDir) {
@@ -2757,7 +2874,7 @@ function Invoke-WtfDelete {
         Get-ChildItem -LiteralPath $featureDir -Force -Recurse -ErrorAction SilentlyContinue |
             Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } |
             ForEach-Object { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { } }
-        Remove-Item $featureDir -Recurse -Force -ErrorAction SilentlyContinue
+        [void](Remove-WtfPath -Path $featureDir)
     }
     $metaPath = Get-WtfMetaPath $featureDir
     if (Test-Path $metaPath) { Remove-Item $metaPath -Force -ErrorAction SilentlyContinue }
@@ -2931,7 +3048,7 @@ function Remove-WtfWorktreeFolder {
             if ($rr.Ok) { Invoke-WtfWorktreePrune -RepoDir $srcRepo; return }
         }
     }
-    if (Test-Path $Path) { Remove-Item $Path -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $Path) { [void](Remove-WtfPath -Path $Path) }
 }
 
 function Invoke-WtfDoctor {

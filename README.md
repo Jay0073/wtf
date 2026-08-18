@@ -199,6 +199,22 @@ Paths
 Other commands: `wtf add`, `wtf remove`, `wtf delete`, `wtf list`, `wtf status`,
 `wtf doctor`, `wtf config`.
 
+### Long paths
+
+Windows used to limit a full path to 260 characters. A worktree folder name is
+already long, and `node_modules` adds another 150 on its own, so real projects
+cross that line.
+
+`wtf delete` handles it. Every git call is made with `core.longpaths=true`, and
+if a folder still refuses to go, wtf deletes it itself through `\\?\` paths,
+which the limit does not apply to. Junctions are unlinked, never followed, so a
+dependency's real checkout is never touched.
+
+This matters more than it sounds. `git worktree remove` unregisters the worktree
+**before** it deletes the files, so when the delete failed you were left with a
+folder git no longer knew about, and running the same command again could not
+help.
+
 ## All commands
 
 Every argument is optional. Leave one out and you are asked, or given a list to

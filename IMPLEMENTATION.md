@@ -198,6 +198,28 @@ Honest limit: when one pane closes and another opens between snapshots, the pane
 count is unchanged and nothing on screen says which happened. It is reported as
 a folder change, with the old folder and command shown, so the call stays yours.
 
+## The 260-character path limit
+
+Two different programs hit this, and each needs its own fix.
+
+**git** refuses with `Filename too long` unless `core.longpaths=true`. wtf now
+passes `-c core.longpaths=true` on every call, in `Invoke-WtfGit`, so nothing in
+the user's git config is changed.
+
+**PowerShell** `Remove-Item` gives up too. The fix is the `\\?\` prefix, which
+tells Windows to hand the path to the file system as-is. `Remove-WtfPath` tries
+`Remove-Item` first, because it is fast and covers the ordinary case, and only
+walks the tree itself through `\\?\` paths when something is left over.
+Deletion is bottom-up, read-only flags are cleared, and a reparse point is
+unlinked rather than walked into — walking into one would delete a dependency's
+real checkout.
+
+The order git works in is what makes this a trap rather than an inconvenience:
+`git worktree remove` unregisters the worktree first and deletes the files
+second. When the delete failed, the folder was left behind and `git worktree
+remove` would answer `is not a working tree` from then on. So the fix has to
+stop the failure happening, not only clean up after it.
+
 ## Bugs found and fixed along the way
 
 - **One-element arrays.** `return @($x)` still unwraps to a scalar on return, so
@@ -221,6 +243,10 @@ a folder change, with the old folder and command shown, so the call stays yours.
 - **Colour variables overwritten by loop variables.** PowerShell ignores case in
   variable names, so `$R` (reset) and `$r` (rectangle) were one variable. The
   drawing came out full of `System.Collections.Hashtable`.
+- **Filename too long.** `wtf delete` on a worktree with a `node_modules` folder
+  failed at `git worktree remove`, and the fallback `Remove-Item` could not
+  finish the job either. Both were the 260-character path limit, from two
+  different directions.
 - **A snapshot that captured itself.** The hotkey's own console window is a
   Windows Terminal window on Windows 11, so the capture targeted it: one pane,
   no directory. The saved layout had a leaf tree and a single pane, and the
@@ -235,6 +261,9 @@ a folder change, with the old folder and command shown, so the call stays yours.
 - `test-layout-core.ps1` — 40 unit tests: name rules, geometry to tree, restore
   plan, launch-argument encoding, all four diff cases, JSON round trip. Passes on
   both hosts.
+- `test-longpath.ps1` — 14 tests: `\\?\` path building including UNC, deleting a
+  tree 479 characters deep, read-only files, a junction whose target must
+  survive, a missing path, and that git really receives `core.longpaths`.
 - `test-e2e.ps1` — builds a real tab, captures it, saves it, rebuilds it in
   another window, re-captures and compares tree and directories, then diffs a
   changed tab against the saved layout.
