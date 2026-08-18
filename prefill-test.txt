@@ -1,5 +1,0 @@
-﻿=== 13:59:35 ===
-PSReadLine history path : C:\Users\jay\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
-AddToHistory            : FAILED - Exception calling "AddToHistory" with "1" argument(s): "Object reference not set to an instance of an object."
-WriteConsoleInput       : ok, wrote 102 records
-=== now look at the pane: is the command sitting at the prompt? ===
