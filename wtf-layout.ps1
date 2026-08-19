@@ -76,6 +76,7 @@ public static class WtfWin {
     [DllImport("user32.dll")] static extern int  GetClassName(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 
     // Every Windows Terminal top-level window uses this class name.
     const string WT_CLASS = "CASCADIA_HOSTING_WINDOW_CLASS";
@@ -1500,12 +1501,55 @@ function Invoke-WtfWtCall {
 function Get-WtfPaneCells {
     <#
     .SYNOPSIS
-        Row height in pixels for every pane of a window's active tab, in order.
+        Row height in pixels for every pane of a window's active tab.
+    .NOTES
+        The order is whatever the accessibility tree hands back. That is NOT the
+        order panes were created in, and not the order the layout numbers them in
+        either, so never index this with a pane number from anywhere else. Use
+        Get-WtfFocusedPaneCell when you mean one particular pane.
     #>
     param([Parameter(Mandatory)][IntPtr]$Hwnd)
     $out = @()
     foreach ($p in @(Get-WtfWindowPanes -Hwnd $Hwnd)) { $out += [double]$p.Cell }
     return $out
+}
+
+function Get-WtfFocusedPaneCell {
+    <#
+    .SYNOPSIS
+        Row height of the pane that currently has the keyboard, or 0.
+    .DESCRIPTION
+        Identifying the pane by focus is what makes zoom reliable. Three
+        different orderings are in play - the order panes were created in, the
+        order the layout numbers them in, and the order the accessibility tree
+        returns them in - and they stop agreeing as soon as a split is nested.
+        Focus sidesteps all three: after `focus-pane --target n`, the pane with
+        the keyboard IS pane n.
+    #>
+    param([Parameter(Mandatory)][IntPtr]$Hwnd)
+    foreach ($p in @(Get-WtfWindowPanes -Hwnd $Hwnd)) {
+        if ($p.HasFocus) { return [double]$p.Cell }
+    }
+    return 0.0
+}
+
+function Wait-WtfPaneFocus {
+    <#
+    .SYNOPSIS
+        Wait until exactly one pane holds the keyboard and can be measured.
+    .DESCRIPTION
+        `focus-pane` runs as its own wt.exe process, so it lands some time after
+        the call returns. Pressing a key before then would zoom the pane we were
+        on before.
+    #>
+    param([Parameter(Mandatory)][IntPtr]$Hwnd, [int]$TimeoutMs = 2500)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.ElapsedMilliseconds -lt $TimeoutMs) {
+        $focused = @(@(Get-WtfWindowPanes -Hwnd $Hwnd) | Where-Object { $_.HasFocus })
+        if ($focused.Count -eq 1 -and $focused[0].Cell -gt 0) { return $true }
+        Start-Sleep -Milliseconds 120
+    }
+    return $false
 }
 
 function Send-WtfZoomKey {
@@ -1524,47 +1568,86 @@ function Send-WtfZoomKey {
     $key = '^{SUBTRACT}'
     if ($In) { $key = '^{ADD}' }
     try { [System.Windows.Forms.SendKeys]::SendWait($key) } catch { return $false }
-    Start-Sleep -Milliseconds 220
+    Start-Sleep -Milliseconds 160
     return $true
+}
+
+function Read-WtfSettledCell {
+    <#
+    .SYNOPSIS
+        Read the focused pane's row height once the terminal has redrawn.
+    .DESCRIPTION
+        A font size change takes a moment to reach the screen. Reading too early
+        returns the old height, which looks exactly like a press that did
+        nothing. So read until two reads in a row agree, or until time runs out.
+    #>
+    param([Parameter(Mandatory)][IntPtr]$Hwnd, [int]$TimeoutMs = 1500)
+    $sw   = [System.Diagnostics.Stopwatch]::StartNew()
+    $last = -1.0
+    while ($sw.ElapsedMilliseconds -lt $TimeoutMs) {
+        $now = Get-WtfFocusedPaneCell -Hwnd $Hwnd
+        if ($now -gt 0 -and $now -eq $last) { return $now }
+        $last = $now
+        Start-Sleep -Milliseconds 110
+    }
+    if ($last -gt 0) { return $last }
+    return 0.0
 }
 
 function Set-WtfPaneZoom {
     <#
     .SYNOPSIS
-        Zoom ONE pane until its rows are the height they were when the layout was
-        saved.
+        Zoom the FOCUSED pane until its rows are the height they were saved at.
     .DESCRIPTION
-        Closed loop rather than arithmetic: measure, press once in the direction
-        that helps, measure again. Font sizes step by whole points and row heights
-        land on whole pixels, so a calculated number of presses would be off as
-        often as not.
+        A closed loop, not arithmetic: font sizes step by whole points and row
+        heights land on whole pixels, so a calculated number of presses would be
+        wrong as often as right.
+
+        It stops on whichever comes first:
+          - close enough, within half a pixel
+          - the next press moved it FURTHER away, in which case it steps back and
+            keeps the closest height it reached
+          - a press changed nothing, so the font is at its limit
+          - the press budget runs out
+
+        The step-back matters. Without it, a target no font size can hit exactly
+        makes the loop cross back and forth over it and stop wherever the budget
+        happens to run out - which is one way a pane ends up unreadably small.
     .OUTPUTS
         $true when it lands within tolerance.
     #>
     param(
         [Parameter(Mandatory)][IntPtr]$Hwnd,
-        [Parameter(Mandatory)][int]$PaneIndex,
         [Parameter(Mandatory)][double]$Target,
-        [int]$MaxPresses = 14
+        [int]$MaxPresses = 20
     )
     if ($Target -le 0) { return $true }
 
+    $now = Read-WtfSettledCell -Hwnd $Hwnd
+    if ($now -le 0) { return $false }
+
     for ($i = 0; $i -lt $MaxPresses; $i++) {
-        $cells = @(Get-WtfPaneCells -Hwnd $Hwnd)
-        if ($PaneIndex -ge $cells.Count) { return $false }
-        $now = [double]$cells[$PaneIndex]
-        if ($now -le 0) { return $false }
+        $gap = [Math]::Abs($now - $Target)
+        if ($gap -le 0.5) { return $true }
 
-        # Within half a pixel is as close as whole-pixel rows allow.
-        if ([Math]::Abs($now - $Target) -le 0.5) { return $true }
-
-        # One press past the target is closer than one press short of it, so stop
-        # when the next press would overshoot by more than it gains.
-        $ok = Send-WtfZoomKey -Hwnd $Hwnd -In:($now -lt $Target)
-        if (-not $ok) {
-            Write-WtfLayoutWarn "  zoom skipped - the terminal is no longer the window in front"
+        $goingDown = ($now -gt $Target)
+        if (-not (Send-WtfZoomKey -Hwnd $Hwnd -In:(-not $goingDown))) {
+            Write-WtfLayoutWarn "  zoom stopped - the terminal is no longer the window in front"
             return $false
         }
+        $after = Read-WtfSettledCell -Hwnd $Hwnd
+        if ($after -le 0) { return $false }
+
+        if ($after -eq $now) {
+            Write-WtfLog "ZOOM press had no effect at $now px - font is at its limit"
+            return $false
+        }
+        if ([Math]::Abs($after - $Target) -ge $gap) {
+            [void](Send-WtfZoomKey -Hwnd $Hwnd -In:$goingDown)
+            [void](Read-WtfSettledCell -Hwnd $Hwnd)
+            return $true
+        }
+        $now = $after
     }
     return $false
 }
@@ -1574,17 +1657,21 @@ function Set-WtfLayoutZoom {
     .SYNOPSIS
         Put every pane back at the zoom it was saved with.
     .DESCRIPTION
-        Panes are addressed by their creation order, which is the order the
-        restore built them in and the same numbering `focus-pane --target` uses.
-        Skips the whole thing when nothing was saved, or when the panes are
-        already right - which is the normal case for a layout captured at the
-        default zoom.
+        Panes are addressed by creation order, which is what `focus-pane
+        --target` takes and the order the restore built them in. Each pane is
+        focused first and then measured BY FOCUS, never by its position in a
+        list - the accessibility tree returns panes in its own order, which stops
+        matching creation order as soon as a split is nested.
+
+        The whole pass is skipped when the tab is already right, which is the
+        normal case for a layout saved at the default zoom.
     #>
     param(
         [Parameter(Mandatory)][IntPtr]$Hwnd,
         [Parameter(Mandatory)]$Plan,
         [string]$WindowTarget = '0'
     )
+    # Step k of the plan builds wt pane k, so this list is in creation order.
     $wanted = @()
     foreach ($step in $Plan) {
         if ($step.kind -eq 'focus') { continue }
@@ -1592,28 +1679,47 @@ function Set-WtfLayoutZoom {
         if ($null -ne $step.cell) { try { $c = [double]$step.cell } catch { } }
         $wanted += $c
     }
-    if (($wanted | Where-Object { $_ -gt 0 }).Count -eq 0) { return }
-
-    $cells = @(Get-WtfPaneCells -Hwnd $Hwnd)
-    $todo  = @()
-    for ($i = 0; $i -lt $wanted.Count -and $i -lt $cells.Count; $i++) {
-        if ($wanted[$i] -le 0) { continue }
-        if ([Math]::Abs($cells[$i] - $wanted[$i]) -le 0.5) { continue }
-        $todo += $i
-    }
+    $todo = @()
+    for ($i = 0; $i -lt $wanted.Count; $i++) { if ($wanted[$i] -gt 0) { $todo += $i } }
     if ($todo.Count -eq 0) { return }
+
+    # Cheap way out: if the heights on screen are already the set we want, every
+    # pane is right and none needs focusing. Compared as sorted lists, because
+    # the order they come back in means nothing.
+    $have = @(@(Get-WtfPaneCells -Hwnd $Hwnd) | Sort-Object)
+    $want = @(@($wanted | Where-Object { $_ -gt 0 }) | Sort-Object)
+    if ($have.Count -eq $want.Count -and $have.Count -gt 0) {
+        $same = $true
+        for ($i = 0; $i -lt $have.Count; $i++) {
+            if ([Math]::Abs($have[$i] - $want[$i]) -gt 0.5) { $same = $false; break }
+        }
+        if ($same) { return }
+    }
 
     if (-not ('System.Windows.Forms.SendKeys' -as [type])) {
         try { Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop }
         catch { Write-WtfLayoutWarn "  zoom skipped - could not load the keyboard helper"; return }
     }
 
+    # The keys go to whatever is in front, so put the terminal there - and say so
+    # rather than typing into the wrong place.
+    [void][WtfWin]::SetForegroundWindow($Hwnd)
+    Start-Sleep -Milliseconds 400
+    if ([WtfWin]::GetForegroundWindow() -ne $Hwnd) {
+        Write-WtfLayoutWarn "  zoom skipped - could not bring the terminal to the front"
+        return
+    }
+
     Write-WtfLayoutStep "setting zoom on $($todo.Count) pane(s) - do not type for a moment"
     foreach ($i in $todo) {
         [void](Invoke-WtfWtCall -Argv @('-w', $WindowTarget, 'focus-pane', '--target', [string]$i))
-        Start-Sleep -Milliseconds 350
-        if (-not (Set-WtfPaneZoom -Hwnd $Hwnd -PaneIndex $i -Target $wanted[$i])) {
-            Write-WtfLayoutWarn "  pane $($i + 1): could not reach the saved zoom"
+        if (-not (Wait-WtfPaneFocus -Hwnd $Hwnd)) {
+            Write-WtfLayoutWarn "  pane $($i + 1): could not tell which pane has the keyboard; left as it is"
+            continue
+        }
+        if (-not (Set-WtfPaneZoom -Hwnd $Hwnd -Target $wanted[$i])) {
+            $got = Get-WtfFocusedPaneCell -Hwnd $Hwnd
+            Write-WtfLayoutWarn "  pane $($i + 1): wanted $($wanted[$i])px rows, got $($got)px"
         }
     }
     # Leave the first pane focused, the way a fresh tab starts.

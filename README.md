@@ -158,14 +158,24 @@ It is stored as the height of one text row in pixels, because that number does
 not move when you resize the pane — only when the font size changes.
 
 Rebuilding sends the same CTRL+MINUS you would press yourself, because `wt.exe`
-has no way to set a font size. Two things follow from that:
+has no way to set a font size. Each pane is focused first, then measured while it
+holds the keyboard, so the keys and the measurement are always about the same
+pane. Three things follow from that:
 
 - It takes about a second, and you see `setting zoom - do not type for a moment`.
 - If you switch to another window while it is working, it stops rather than
   typing into whatever you switched to, and tells you so.
+- If a target zoom is between two font sizes, you get the nearer of the two.
 
 A layout saved before this existed has no zoom recorded, so nothing is sent and
 it opens at your normal size. Snap it once and the zoom is picked up.
+
+### Searching a pane
+
+Windows Terminal already has this, and it is easy to miss: **CTRL+SHIFT+F** opens
+a find box for the pane you are in, with case-sensitive and regular-expression
+toggles and next/previous buttons. It searches that pane's scrollback, not the
+other panes.
 
 ### Which layout is this tab?
 

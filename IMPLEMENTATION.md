@@ -205,7 +205,44 @@ CTRL+MINUS the user would press.
 `Set-WtfPaneZoom` is a closed loop rather than arithmetic: measure, press once in
 the direction that helps, measure again. Font sizes step by whole points and row
 heights land on whole pixels, so a calculated number of presses would be wrong as
-often as right. It stops within half a pixel, or after 14 presses.
+often as right.
+
+**Panes are identified by keyboard focus, never by an index.** Three different
+orderings are in play and they all disagree as soon as a split is nested:
+
+| ordering | who uses it |
+|---|---|
+| creation order | the restore plan, and `focus-pane --target` |
+| layout order (the tree, top-left first) | pane numbers in a layout file |
+| accessibility tree order | whatever `FindAll` hands back |
+
+The first version focused pane *n* by creation order and then measured
+`cells[n]` in accessibility-tree order. With two panes those agree, which is
+exactly what the first test had, so it passed. With a nested split they do not,
+and the loop measured one pane while pressing keys into another. It then either
+exited straight away, because the pane it was reading happened to be right —
+looking like zoom that did nothing — or pressed until the budget ran out,
+because the pane it was reading never moved, leaving the other pane unreadably
+small. Both were reported from real use.
+
+Focus removes all three orderings from the question: after `focus-pane --target
+n`, the pane holding the keyboard IS pane n, so `Get-WtfFocusedPaneCell` is
+measuring the pane the keys are going to. `Wait-WtfPaneFocus` waits for that to
+be true before any key is sent, because `focus-pane` is a separate process and
+lands after the call returns.
+
+Two more things the loop needs:
+
+- **A step back on overshoot.** If no font size hits the target exactly, the
+  loop would cross back and forth over it and stop wherever the budget ran out.
+  Now a press that increases the distance is undone and the closest height is
+  kept.
+- **A settled reading.** A font change takes a moment to reach the screen, and
+  reading too early returns the old height, which looks exactly like a press
+  that did nothing. `Read-WtfSettledCell` reads until two reads agree.
+
+It stops within half a pixel, on overshoot, when a press changes nothing (the
+font is at its limit), or after 20 presses.
 
 `Send-WtfZoomKey` refuses to press anything unless the terminal is still the
 window in front. Without that check a keystroke could land in whatever the user
@@ -354,6 +391,12 @@ stop the failure happening, not only clean up after it.
 - **git on 5.1.** `ProcessStartInfo.ArgumentList` is .NET Core only; on .NET
   Framework it is `$null`, so every git call threw. There is now a fallback that
   builds a correctly quoted command line.
+- **Zoom that landed on the wrong pane.** The restore focused a pane by its
+  creation number and then measured a pane by its position in the accessibility
+  tree. Those two agree only while a tab has two panes, which is what the test
+  had. With a nested split, zoom either did nothing or shrank a pane until the
+  press budget ran out — both seen in real use. Panes are now identified by
+  which one holds the keyboard.
 - **Identity that an agent could erase.** A restored tab was recognised by its
   title, and one pane added by hand was enough to lose it: the program in that
   pane renamed itself and the tab followed. The tab's own runtime id replaced it.
@@ -386,10 +429,12 @@ stop the failure happening, not only clean up after it.
 - `test-layout-core.ps1` — 40 unit tests: name rules, geometry to tree, restore
   plan, launch-argument encoding, all four diff cases, JSON round trip. Passes on
   both hosts.
-- `test-zoom.ps1` — 12 tests on real tabs: zooming one pane leaves its neighbour
+- `test-zoom.ps1` — 18 tests on real tabs: zooming one pane leaves its neighbour
   alone, the capture records both, it survives the JSON round trip and the
   restore plan, a rebuilt tab lands on the same row heights, and a layout with no
-  zoom saved asks for none.
+  zoom saved asks for none. Section 6 is the case the two-pane tests could not
+  see: four panes with a nested split and a different zoom in each, checked to
+  come back exactly and checked that no pane was shrunk past its target.
 - `test-tabid.ps1` — 23 tests on a real terminal tab: the id is stable across
   processes, across a hand-added pane, across a program renaming the tab, across
   tab switches; a second tab differs; a note survives all of it; a stale or dead

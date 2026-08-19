@@ -111,6 +111,92 @@ $sum = 0.0
 foreach ($s in $planP) { if ($s.kind -ne 'focus') { $sum += [double]$s.cell } }
 Check "an old layout asks for no zoom"       ($sum -eq 0) "$sum"
 
+Write-Host ""
+Write-Host "=== 6. FOUR panes, nested split, every pane a different zoom ===" -ForegroundColor Cyan
+Write-Host "    (with two panes every ordering agrees, which is why this was missed)"
+
+$L4 = 'zz-zoom-nested'
+$base4 = 22.9
+$cells4 = @()
+$src4 = [IntPtr]::Zero
+
+Start-Process wt.exe -ArgumentList @('-w','zzn','new-tab','--title','ZZN',$SUP,'-d','C:\Users','powershell','-NoExit')
+Start-Sleep -Seconds 8
+Start-Process wt.exe -ArgumentList @('-w','zzn','split-pane','-V','-s','0.5','--title','ZZN',$SUP,'-d','C:\Windows','powershell','-NoExit')
+Start-Sleep -Seconds 5
+Start-Process wt.exe -ArgumentList @('-w','zzn','split-pane','-H','-s','0.5','--title','ZZN',$SUP,'-d','C:\Users\jay','powershell','-NoExit')
+Start-Sleep -Seconds 5
+Start-Process wt.exe -ArgumentList @('-w','zzn','focus-pane','--target','0')
+Start-Sleep -Seconds 3
+Start-Process wt.exe -ArgumentList @('-w','zzn','split-pane','-H','-s','0.4','--title','ZZN',$SUP,'-d','C:\Users\jay\Documents','powershell','-NoExit')
+Start-Sleep -Seconds 6
+
+foreach ($h in (Get-WtfTerminalWindows)) {
+    if (($before -notcontains $h)) {
+        $pp = @(Get-WtfWindowPanes -Hwnd $h)
+        if ($pp.Count -eq 4) { $src4 = $h; break }
+    }
+}
+Check "a 4-pane nested tab was built"        ($src4 -ne [IntPtr]::Zero) ''
+if ($src4 -ne [IntPtr]::Zero) {
+    # zoom a DIFFERENT amount into each pane, by creation order
+    [void][WtfZoomTest]::ShowWindow($src4, 9)
+    [void][WtfZoomTest]::SetForegroundWindow($src4)
+    Start-Sleep -Milliseconds 900
+    $presses = @(0, 3, 1, 5)
+    for ($i = 0; $i -lt 4; $i++) {
+        Start-Process wt.exe -ArgumentList @('-w','zzn','focus-pane','--target',[string]$i)
+        Start-Sleep -Milliseconds 1200
+        [void][WtfZoomTest]::SetForegroundWindow($src4)
+        Start-Sleep -Milliseconds 400
+        for ($k = 0; $k -lt $presses[$i]; $k++) {
+            [System.Windows.Forms.SendKeys]::SendWait('^{SUBTRACT}')
+            Start-Sleep -Milliseconds 300
+        }
+    }
+    Start-Sleep -Seconds 2
+
+    $cap4 = Get-WtfCaptureFromWindow -Hwnd $src4
+    $cells4 = @($cap4.Panes | ForEach-Object { $_.cell })
+    Write-Host "    captured row heights: $($cells4 -join ', ') px"
+    Check "four different zooms were captured" ((@($cells4 | Select-Object -Unique).Count) -ge 3) "$($cells4 -join ', ')"
+
+    $panes4 = @()
+    foreach ($p in $cap4.Panes) { $panes4 += @{ id = $p.id; dir = $p.dir; command = ''; run = $true; cell = $p.cell } }
+    $obj4 = New-WtfLayoutObject -Name $L4 -Panes $panes4 -Tree $cap4.Tree -Description 'nested zoom'
+    [void](Write-WtfLayout -Name $L4 -Layout $obj4)
+
+    Write-Host "    rebuilding..."
+    $ok4 = Invoke-WtfLayoutRestore -Name $L4 -Layout (Read-WtfLayout -Name $L4) -WindowTarget 'zzn2'
+    Check "the restore reported success"       ([bool]$ok4) ''
+
+    $dst4 = [IntPtr]::Zero
+    foreach ($h in (Get-WtfTerminalWindows)) {
+        if (($before -notcontains $h) -and ($h -ne $src4) -and ($h -ne $src) -and ($h -ne $dst)) {
+            $pp = @(Get-WtfWindowPanes -Hwnd $h)
+            if ($pp.Count -eq 4) { $dst4 = $h; break }
+        }
+    }
+    Check "the rebuilt tab has 4 panes"        ($dst4 -ne [IntPtr]::Zero) ''
+    if ($dst4 -ne [IntPtr]::Zero) {
+        Start-Sleep -Seconds 2
+        $back4 = Get-WtfCaptureFromWindow -Hwnd $dst4
+        $got4  = @($back4.Panes | ForEach-Object { $_.cell })
+        Write-Host "    wanted:  $($cells4 -join ', ') px"
+        Write-Host "    rebuilt: $($got4 -join ', ') px"
+        $allOk = $true
+        for ($i = 0; $i -lt $cells4.Count; $i++) {
+            if ([Math]::Abs($got4[$i] - $cells4[$i]) -gt 1.0) { $allOk = $false }
+        }
+        Check "every pane came back at its own zoom" $allOk "$($got4 -join ', ')"
+        # the specific failure that started this: a pane zoomed far past its target
+        $tooSmall = $false
+        for ($i = 0; $i -lt $got4.Count; $i++) { if ($got4[$i] -lt ($cells4[$i] - 2)) { $tooSmall = $true } }
+        Check "no pane was shrunk past its target" (-not $tooSmall) "$($got4 -join ', ')"
+    }
+    Remove-Item -LiteralPath (Get-WtfLayoutPath -Name $L4) -Force -ErrorAction SilentlyContinue
+}
+
 # ---- clean up ---------------------------------------------------------------
 Remove-Item -LiteralPath (Get-WtfLayoutPath -Name $LAY) -Force -ErrorAction SilentlyContinue
 if ($null -ne $bindBackup) { Set-Content -LiteralPath $script:WtfBindFile -Value $bindBackup -Encoding UTF8 }
